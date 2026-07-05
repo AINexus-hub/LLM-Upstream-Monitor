@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.local
+data/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+Thumbs.db
+coverage/
+.vite/
+*.tsbuildinfo
