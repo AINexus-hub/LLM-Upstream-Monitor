@@ -1,8 +1,8 @@
-# LLM-Balance-Monitor 第一版开发基准文档
+# LLM-Upstream-Monitor 第一版开发基准文档
 
 ## 1. 项目定位
 
-LLM-Balance-Monitor 是一个用于检查上游 AI LLM Gateway 余额的本地监控项目。
+LLM-Upstream-Monitor 是一个用于检查上游 AI LLM Gateway 余额的本地监控项目。
 
 第一版只聚焦两个核心能力：
 

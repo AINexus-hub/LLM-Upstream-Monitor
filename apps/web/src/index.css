@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @theme inline {
   --color-background: hsl(var(--background));
@@ -16,38 +15,139 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-destructive: hsl(var(--destructive));
-  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --primary: 173 80% 28%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 173 80% 28%;
-  --destructive: 0 72% 51%;
-  --radius-md: 0.5rem;
+  --background: 224 58% 6%;
+  --foreground: 214 44% 93%;
+  --card: 224 46% 10%;
+  --card-foreground: 214 44% 93%;
+  --primary: 189 96% 62%;
+  --primary-foreground: 224 58% 7%;
+  --secondary: 224 34% 17%;
+  --secondary-foreground: 214 36% 90%;
+  --muted: 225 34% 15%;
+  --muted-foreground: 215 22% 70%;
+  --border: 224 26% 27%;
+  --input: 224 24% 34%;
+  --ring: 189 96% 62%;
+  --destructive: 0 72% 68%;
+  --glow-one: 199 100% 52%;
+  --glow-two: 266 100% 68%;
+  --grid: 210 100% 80%;
+  --login-a: 222 73% 8%;
+  --login-b: 218 70% 18%;
+  --login-c: 266 74% 20%;
+}
+
+[data-theme="violet"] {
+  --background: 258 48% 7%;
+  --foreground: 260 46% 94%;
+  --card: 258 39% 11%;
+  --card-foreground: 260 46% 94%;
+  --primary: 278 96% 72%;
+  --primary-foreground: 260 56% 8%;
+  --secondary: 260 32% 18%;
+  --secondary-foreground: 262 44% 91%;
+  --muted: 260 31% 16%;
+  --muted-foreground: 262 24% 72%;
+  --border: 260 26% 30%;
+  --input: 260 24% 37%;
+  --ring: 278 96% 72%;
+  --glow-one: 280 100% 64%;
+  --glow-two: 199 100% 62%;
+  --grid: 280 100% 83%;
+  --login-a: 258 58% 8%;
+  --login-b: 272 62% 18%;
+  --login-c: 226 66% 17%;
+}
+
+[data-theme="ocean"] {
+  --background: 205 66% 6%;
+  --foreground: 195 42% 94%;
+  --card: 205 50% 10%;
+  --card-foreground: 195 42% 94%;
+  --primary: 173 90% 55%;
+  --primary-foreground: 205 66% 7%;
+  --secondary: 203 38% 17%;
+  --secondary-foreground: 195 38% 90%;
+  --muted: 202 36% 15%;
+  --muted-foreground: 196 24% 72%;
+  --border: 201 29% 28%;
+  --input: 201 26% 36%;
+  --ring: 173 90% 55%;
+  --glow-one: 173 90% 50%;
+  --glow-two: 209 100% 61%;
+  --grid: 184 100% 80%;
+  --login-a: 205 70% 7%;
+  --login-b: 195 70% 16%;
+  --login-c: 222 64% 17%;
+}
+
+[data-theme="ember"] {
+  --background: 230 36% 7%;
+  --foreground: 38 42% 93%;
+  --card: 230 30% 11%;
+  --card-foreground: 38 42% 93%;
+  --primary: 36 98% 64%;
+  --primary-foreground: 230 36% 8%;
+  --secondary: 229 25% 18%;
+  --secondary-foreground: 38 34% 90%;
+  --muted: 229 25% 16%;
+  --muted-foreground: 38 20% 72%;
+  --border: 229 22% 29%;
+  --input: 229 20% 36%;
+  --ring: 36 98% 64%;
+  --glow-one: 36 98% 58%;
+  --glow-two: 338 90% 62%;
+  --grid: 36 100% 82%;
+  --login-a: 230 42% 8%;
+  --login-b: 249 38% 17%;
+  --login-c: 22 60% 16%;
 }
 
 * {
   border-color: hsl(var(--border));
+  box-sizing: border-box;
+}
+
+html {
+  background: hsl(var(--background));
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background: hsl(var(--background));
+  background:
+    radial-gradient(circle at 14% 8%, hsl(var(--glow-one) / 0.18), transparent 28rem),
+    radial-gradient(circle at 84% 0%, hsl(var(--glow-two) / 0.14), transparent 32rem),
+    linear-gradient(90deg, hsl(var(--grid) / 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, hsl(var(--grid) / 0.04) 1px, transparent 1px),
+    hsl(var(--background));
+  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+  background-attachment: fixed;
   color: hsl(var(--foreground));
   font-synthesis: none;
+  letter-spacing: 0;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+input,
+select,
+option {
+  color-scheme: dark;
+}
+
+option {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
 }

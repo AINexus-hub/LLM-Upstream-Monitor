@@ -18,7 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@llm-balance-monitor/shared": ["../../packages/shared/src"]
+      "@llm-upstream-monitor/shared": ["../../packages/shared/src"]
     },
     "jsx": "react-jsx",
 

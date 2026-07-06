@@ -1,5 +1,5 @@
 {
-  "name": "@llm-balance-monitor/shared",
+  "name": "@llm-upstream-monitor/shared",
   "version": "0.1.0",
   "private": true,
   "type": "module",

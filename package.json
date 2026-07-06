@@ -1,5 +1,5 @@
 {
-  "name": "llm-balance-monitor",
+  "name": "llm-upstream-monitor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,9 +8,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @llm-balance-monitor/api\" \"npm run dev -w @llm-balance-monitor/web\"",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @llm-upstream-monitor/api\" \"npm run dev -w @llm-upstream-monitor/web\"",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -23,6 +24,7 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "prettier": "^3.7.3",
-    "typescript-eslint": "^8.50.1"
+    "typescript-eslint": "^8.50.1",
+    "vitest": "^4.1.9"
   }
 }

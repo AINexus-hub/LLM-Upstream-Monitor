@@ -1,4 +1,4 @@
-# LLM-Balance-Monitor
+# LLM-Upstream-Monitor
 
 本项目用于检查上游 AI LLM Gateway 余额。第一版聚焦渠道管理和余额变化图表，支持 NewAPI 与 Sub2API 两个模板。
 

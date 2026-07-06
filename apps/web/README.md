@@ -1,6 +1,6 @@
 # Web
 
-LLM-Balance-Monitor 前端应用。
+LLM-Upstream-Monitor 前端应用。
 
 技术栈：
 

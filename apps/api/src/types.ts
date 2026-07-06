@@ -1,10 +1,24 @@
-import type { BalanceCheckRecord, ChannelType } from "@llm-balance-monitor/shared"
+import type { BalanceCheckRecord, ChannelType, TaskRunRecord } from "@llm-upstream-monitor/shared"
 
 export type ChannelRow = {
   id: string
   name: string
   type: ChannelType
   requestUrl: string
+  officialUrl: string | null
+  upstreamLoginUrl: string | null
+  upstreamUsername: string | null
+  upstreamPassword: string | null
+  upstreamAccessToken: string | null
+  upstreamRefreshToken: string | null
+  upstreamTokenExpiresAt: string | null
+  upstreamLastSyncAt: string | null
+  upstreamLastSyncError: string | null
+  rechargeRate: number
+  alertThreshold: number | null
+  balanceAlertEnabled: boolean
+  groupChangeAlertEnabled: boolean
+  groupRateAlertEnabled: boolean
   accessToken: string | null
   userId: string | null
   apiKey: string | null
@@ -19,20 +33,47 @@ export type PublicChannel = {
   name: string
   type: ChannelType
   requestUrl: string
+  officialUrl?: string | null
+  upstreamLoginUrl?: string | null
+  upstreamUsername?: string | null
+  upstreamTokenExpiresAt?: string | null
+  upstreamLastSyncAt?: string | null
+  upstreamLastSyncError?: string | null
+  rechargeRate: number
+  alertThreshold?: number | null
+  balanceAlertEnabled: boolean
+  groupChangeAlertEnabled: boolean
+  groupRateAlertEnabled: boolean
   timeoutSeconds: number
   checkIntervalMinutes: number
   createdAt: string
   updatedAt: string
   hasAccessToken: boolean
   hasApiKey: boolean
+  hasUpstreamPassword: boolean
+  hasUpstreamAccessToken: boolean
+  hasUpstreamRefreshToken: boolean
   userId?: string
   lastCheck?: BalanceCheckRecord
+  lastTaskRun?: TaskRunRecord
 }
 
 export type CreateChannelInput = {
   name: string
   type: ChannelType
   requestUrl: string
+  officialUrl?: string | null
+  upstreamLoginUrl?: string | null
+  upstreamUsername?: string | null
+  upstreamPassword?: string
+  upstreamAccessToken?: string
+  upstreamRefreshToken?: string
+  upstreamTokenExpiresAt?: string | null
+  rechargeRate?: number
+  alertThreshold?: number | null
+  balanceAlertEnabled?: boolean
+  groupChangeAlertEnabled?: boolean
+  groupRateAlertEnabled?: boolean
   accessToken?: string
   userId?: string
   apiKey?: string

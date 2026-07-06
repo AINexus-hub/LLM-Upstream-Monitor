@@ -1,13 +1,29 @@
-import type { BalanceCheckRecord } from "@llm-balance-monitor/shared"
+import type { BalanceCheckRecord } from "@llm-upstream-monitor/shared"
 import { randomUUID } from "node:crypto"
 import { db } from "../db.js"
 import type { ChannelRow, CreateChannelInput, PublicChannel, UpdateChannelInput } from "../types.js"
+import { createNotification } from "./notifications.js"
+import { getLatestTaskRunsByChannel } from "./task-runs.js"
 
 type DbChannelRow = {
   id: string
   name: string
   type: string
   request_url: string
+  official_url: string | null
+  upstream_login_url: string | null
+  upstream_username: string | null
+  upstream_password: string | null
+  upstream_access_token: string | null
+  upstream_refresh_token: string | null
+  upstream_token_expires_at: string | null
+  upstream_last_sync_at: string | null
+  upstream_last_sync_error: string | null
+  recharge_rate: number | null
+  alert_threshold: number | null
+  balance_alert_enabled: number | null
+  group_change_alert_enabled: number | null
+  group_rate_alert_enabled: number | null
   access_token: string | null
   user_id: string | null
   api_key: string | null
@@ -37,6 +53,20 @@ function mapChannel(row: DbChannelRow): ChannelRow {
     name: row.name,
     type: row.type === "sub2api" ? "sub2api" : "newapi",
     requestUrl: row.request_url,
+    officialUrl: row.official_url,
+    upstreamLoginUrl: row.upstream_login_url,
+    upstreamUsername: row.upstream_username,
+    upstreamPassword: row.upstream_password,
+    upstreamAccessToken: row.upstream_access_token,
+    upstreamRefreshToken: row.upstream_refresh_token,
+    upstreamTokenExpiresAt: row.upstream_token_expires_at,
+    upstreamLastSyncAt: row.upstream_last_sync_at,
+    upstreamLastSyncError: row.upstream_last_sync_error,
+    rechargeRate: row.recharge_rate ?? 1,
+    alertThreshold: row.alert_threshold,
+    balanceAlertEnabled: row.balance_alert_enabled !== 0,
+    groupChangeAlertEnabled: row.group_change_alert_enabled !== 0,
+    groupRateAlertEnabled: row.group_rate_alert_enabled !== 0,
     accessToken: row.access_token,
     userId: row.user_id,
     apiKey: row.api_key,
@@ -63,20 +93,39 @@ function mapCheck(row: DbCheckRow): BalanceCheckRecord {
   }
 }
 
-function toPublicChannel(channel: ChannelRow, lastCheck?: BalanceCheckRecord): PublicChannel {
+function toPublicChannel(
+  channel: ChannelRow,
+  lastCheck?: BalanceCheckRecord,
+  lastTaskRun?: PublicChannel["lastTaskRun"],
+): PublicChannel {
   return {
     id: channel.id,
     name: channel.name,
     type: channel.type,
     requestUrl: channel.requestUrl,
+    officialUrl: channel.officialUrl ?? undefined,
+    upstreamLoginUrl: channel.upstreamLoginUrl ?? undefined,
+    upstreamUsername: channel.upstreamUsername ?? undefined,
+    upstreamTokenExpiresAt: channel.upstreamTokenExpiresAt ?? undefined,
+    upstreamLastSyncAt: channel.upstreamLastSyncAt ?? undefined,
+    upstreamLastSyncError: channel.upstreamLastSyncError ?? undefined,
+    rechargeRate: channel.rechargeRate,
+    alertThreshold: channel.alertThreshold ?? undefined,
+    balanceAlertEnabled: channel.balanceAlertEnabled,
+    groupChangeAlertEnabled: channel.groupChangeAlertEnabled,
+    groupRateAlertEnabled: channel.groupRateAlertEnabled,
     timeoutSeconds: channel.timeoutSeconds,
     checkIntervalMinutes: channel.checkIntervalMinutes,
     createdAt: channel.createdAt,
     updatedAt: channel.updatedAt,
     hasAccessToken: Boolean(channel.accessToken),
     hasApiKey: Boolean(channel.apiKey),
+    hasUpstreamPassword: Boolean(channel.upstreamPassword),
+    hasUpstreamAccessToken: Boolean(channel.upstreamAccessToken),
+    hasUpstreamRefreshToken: Boolean(channel.upstreamRefreshToken),
     userId: channel.userId ?? undefined,
     lastCheck,
+    lastTaskRun,
   }
 }
 
@@ -84,8 +133,11 @@ export async function listChannels(): Promise<PublicChannel[]> {
   const channelsResult = await db.execute("select * from channels order by created_at desc")
   const channels = channelsResult.rows.map((row) => mapChannel(row as unknown as DbChannelRow))
 
+  const latestTaskRuns = await getLatestTaskRunsByChannel(channels.map((channel) => channel.id))
   const publicChannels = await Promise.all(
-    channels.map(async (channel) => toPublicChannel(channel, await getLatestCheck(channel.id))),
+    channels.map(async (channel) =>
+      toPublicChannel(channel, await getLatestCheck(channel.id), latestTaskRuns[channel.id]),
+    ),
   )
 
   return publicChannels
@@ -107,7 +159,8 @@ export async function getPublicChannel(id: string): Promise<PublicChannel | null
     return null
   }
 
-  return toPublicChannel(channel, await getLatestCheck(id))
+  const latestTaskRuns = await getLatestTaskRunsByChannel([id])
+  return toPublicChannel(channel, await getLatestCheck(id), latestTaskRuns[id])
 }
 
 export async function createChannel(input: CreateChannelInput): Promise<PublicChannel> {
@@ -116,14 +169,30 @@ export async function createChannel(input: CreateChannelInput): Promise<PublicCh
 
   await db.execute({
     sql: `insert into channels (
-      id, name, type, request_url, access_token, user_id, api_key,
+      id, name, type, request_url, official_url,
+      upstream_login_url, upstream_username, upstream_password, upstream_access_token,
+      upstream_refresh_token, upstream_token_expires_at,
+      recharge_rate, alert_threshold, balance_alert_enabled, group_change_alert_enabled,
+      group_rate_alert_enabled, access_token, user_id, api_key,
       timeout_seconds, check_interval_minutes, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       input.name,
       input.type,
       input.requestUrl,
+      input.officialUrl ?? null,
+      input.upstreamLoginUrl ?? null,
+      input.upstreamUsername ?? null,
+      input.upstreamPassword ?? null,
+      input.upstreamAccessToken ?? null,
+      input.upstreamRefreshToken ?? null,
+      input.upstreamTokenExpiresAt ?? null,
+      input.rechargeRate ?? 1,
+      input.alertThreshold ?? null,
+      input.balanceAlertEnabled === false ? 0 : 1,
+      input.groupChangeAlertEnabled === false ? 0 : 1,
+      input.groupRateAlertEnabled === false ? 0 : 1,
       input.accessToken ?? null,
       input.userId ?? null,
       input.apiKey ?? null,
@@ -155,6 +224,32 @@ export async function updateChannel(
     name: input.name ?? current.name,
     type: input.type ?? current.type,
     requestUrl: input.requestUrl ?? current.requestUrl,
+    officialUrl: input.officialUrl === undefined ? current.officialUrl : input.officialUrl || null,
+    upstreamLoginUrl:
+      input.upstreamLoginUrl === undefined ? current.upstreamLoginUrl : input.upstreamLoginUrl || null,
+    upstreamUsername:
+      input.upstreamUsername === undefined ? current.upstreamUsername : input.upstreamUsername || null,
+    upstreamPassword:
+      input.upstreamPassword === undefined || input.upstreamPassword === ""
+        ? current.upstreamPassword
+        : input.upstreamPassword,
+    upstreamAccessToken:
+      input.upstreamAccessToken === undefined || input.upstreamAccessToken === ""
+        ? current.upstreamAccessToken
+        : input.upstreamAccessToken,
+    upstreamRefreshToken:
+      input.upstreamRefreshToken === undefined || input.upstreamRefreshToken === ""
+        ? current.upstreamRefreshToken
+        : input.upstreamRefreshToken,
+    upstreamTokenExpiresAt:
+      input.upstreamTokenExpiresAt === undefined
+        ? current.upstreamTokenExpiresAt
+        : input.upstreamTokenExpiresAt || null,
+    rechargeRate: input.rechargeRate ?? current.rechargeRate,
+    alertThreshold: input.alertThreshold === undefined ? current.alertThreshold : input.alertThreshold,
+    balanceAlertEnabled: input.balanceAlertEnabled ?? current.balanceAlertEnabled,
+    groupChangeAlertEnabled: input.groupChangeAlertEnabled ?? current.groupChangeAlertEnabled,
+    groupRateAlertEnabled: input.groupRateAlertEnabled ?? current.groupRateAlertEnabled,
     accessToken:
       input.accessToken === undefined || input.accessToken === ""
         ? current.accessToken
@@ -171,6 +266,18 @@ export async function updateChannel(
       name = ?,
       type = ?,
       request_url = ?,
+      official_url = ?,
+      upstream_login_url = ?,
+      upstream_username = ?,
+      upstream_password = ?,
+      upstream_access_token = ?,
+      upstream_refresh_token = ?,
+      upstream_token_expires_at = ?,
+      recharge_rate = ?,
+      alert_threshold = ?,
+      balance_alert_enabled = ?,
+      group_change_alert_enabled = ?,
+      group_rate_alert_enabled = ?,
       access_token = ?,
       user_id = ?,
       api_key = ?,
@@ -182,6 +289,18 @@ export async function updateChannel(
       next.name,
       next.type,
       next.requestUrl,
+      next.officialUrl,
+      next.upstreamLoginUrl,
+      next.upstreamUsername,
+      next.upstreamPassword,
+      next.upstreamAccessToken,
+      next.upstreamRefreshToken,
+      next.upstreamTokenExpiresAt,
+      next.rechargeRate,
+      next.alertThreshold,
+      next.balanceAlertEnabled ? 1 : 0,
+      next.groupChangeAlertEnabled ? 1 : 0,
+      next.groupRateAlertEnabled ? 1 : 0,
       next.accessToken,
       next.userId,
       next.apiKey,
@@ -195,10 +314,52 @@ export async function updateChannel(
   return getPublicChannel(id)
 }
 
+export type UpstreamSessionUpdate = {
+  accessToken?: string | null
+  refreshToken?: string | null
+  tokenExpiresAt?: string | null
+  lastSyncAt?: string | null
+  lastSyncError?: string | null
+}
+
+export async function updateUpstreamSession(
+  id: string,
+  input: UpstreamSessionUpdate,
+): Promise<PublicChannel | null> {
+  const current = await getChannel(id)
+  if (!current) {
+    return null
+  }
+
+  await db.execute({
+    sql: `update channels set
+      upstream_access_token = ?,
+      upstream_refresh_token = ?,
+      upstream_token_expires_at = ?,
+      upstream_last_sync_at = ?,
+      upstream_last_sync_error = ?,
+      updated_at = ?
+      where id = ?`,
+    args: [
+      input.accessToken === undefined ? current.upstreamAccessToken : input.accessToken,
+      input.refreshToken === undefined ? current.upstreamRefreshToken : input.refreshToken,
+      input.tokenExpiresAt === undefined ? current.upstreamTokenExpiresAt : input.tokenExpiresAt,
+      input.lastSyncAt === undefined ? current.upstreamLastSyncAt : input.lastSyncAt,
+      input.lastSyncError === undefined ? current.upstreamLastSyncError : input.lastSyncError,
+      new Date().toISOString(),
+      id,
+    ],
+  })
+
+  return getPublicChannel(id)
+}
+
 export async function saveCheck(
   channelId: string,
   record: Omit<BalanceCheckRecord, "id" | "channelId" | "checkedAt">,
 ): Promise<BalanceCheckRecord> {
+  const channel = await getChannel(channelId)
+  const previous = await getLatestCheck(channelId)
   const saved: BalanceCheckRecord = {
     id: randomUUID(),
     channelId,
@@ -226,13 +387,89 @@ export async function saveCheck(
     ],
   })
 
+  if (channel) {
+    await createCheckNotifications(channel, previous, saved)
+  }
+
   return saved
 }
 
-export async function listChecks(channelId: string): Promise<BalanceCheckRecord[]> {
+function isBalanceAlerting(channel: ChannelRow, check: BalanceCheckRecord | undefined) {
+  if (!channel.balanceAlertEnabled || channel.alertThreshold == null || check?.remaining === undefined) {
+    return false
+  }
+
+  return check.remaining / (channel.rechargeRate || 1) <= channel.alertThreshold
+}
+
+async function createCheckNotifications(
+  channel: ChannelRow,
+  previous: BalanceCheckRecord | undefined,
+  current: BalanceCheckRecord,
+) {
+  if (!current.success) {
+    await createNotification({
+      channelId: channel.id,
+      type: "check_failed",
+      title: `${channel.name} 检测失败`,
+      body: current.errorMessage ?? "最近一次余额检测未成功。",
+      severity: "error",
+      metadata: { checkId: current.id },
+      dedupeUnread: true,
+    })
+    return
+  }
+
+  if (previous && !previous.success) {
+    await createNotification({
+      channelId: channel.id,
+      type: "check_recovered",
+      title: `${channel.name} 检测恢复`,
+      body: "余额检测已恢复正常。",
+      severity: "info",
+      metadata: { checkId: current.id, previousCheckId: previous.id },
+      dedupeUnread: true,
+    })
+  }
+
+  const wasAlerting = isBalanceAlerting(channel, previous)
+  const isAlerting = isBalanceAlerting(channel, current)
+
+  if (isAlerting) {
+    await createNotification({
+      channelId: channel.id,
+      type: "balance_alert",
+      title: `${channel.name} 余额告警`,
+      body: `折算余额 ${(current.remaining ?? 0) / (channel.rechargeRate || 1)}，已低于阈值 ${channel.alertThreshold}。`,
+      severity: "warning",
+      metadata: { checkId: current.id },
+      dedupeUnread: true,
+    })
+    return
+  }
+
+  if (wasAlerting) {
+    await createNotification({
+      channelId: channel.id,
+      type: "balance_recovered",
+      title: `${channel.name} 余额恢复`,
+      body: `折算余额 ${(current.remaining ?? 0) / (channel.rechargeRate || 1)}，已高于阈值 ${channel.alertThreshold}。`,
+      severity: "info",
+      metadata: { checkId: current.id, previousCheckId: previous?.id },
+      dedupeUnread: true,
+    })
+  }
+}
+
+export async function listChecks(channelId: string, limit = 2000): Promise<BalanceCheckRecord[]> {
   const result = await db.execute({
-    sql: "select * from balance_checks where channel_id = ? order by checked_at asc",
-    args: [channelId],
+    sql: `select * from (
+      select * from balance_checks
+      where channel_id = ?
+      order by checked_at desc
+      limit ?
+    ) order by checked_at asc`,
+    args: [channelId, limit],
   })
 
   return result.rows.map((row) => mapCheck(row as unknown as DbCheckRow))

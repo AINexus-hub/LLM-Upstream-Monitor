@@ -1,6 +1,7 @@
-import type { BalanceResult } from "@llm-balance-monitor/shared"
+import type { BalanceResult } from "@llm-upstream-monitor/shared"
 import { getChannel, saveCheck } from "../repositories/channels.js"
 import type { ChannelRow } from "../types.js"
+import { syncUpstreamProvider } from "./upstream-provider-adapters.js"
 
 function joinUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/+$/, "")}${path}`
@@ -9,11 +10,14 @@ function joinUrl(baseUrl: string, path: string) {
 async function requestJson(channel: ChannelRow, path: string, headers: Record<string, string>) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), channel.timeoutSeconds * 1000)
+  const requestHeaders = { ...headers }
+  delete requestHeaders["Content-Type"]
+  delete requestHeaders["content-type"]
 
   try {
     const response = await fetch(joinUrl(channel.requestUrl, path), {
       method: "GET",
-      headers,
+      headers: requestHeaders,
       signal: controller.signal,
     })
 
@@ -34,12 +38,22 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
 function asNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
 function asString(value: unknown) {
   return typeof value === "string" ? value : undefined
+}
+
+function hasUpstreamLogin(channel: ChannelRow) {
+  return Boolean(
+    channel.upstreamPassword || channel.upstreamAccessToken || channel.upstreamRefreshToken,
+  )
 }
 
 async function checkNewApi(channel: ChannelRow): Promise<BalanceResult> {
@@ -52,16 +66,14 @@ async function checkNewApi(channel: ChannelRow): Promise<BalanceResult> {
 
   const response = asRecord(
     await requestJson(channel, "/api/user/self", {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${channel.accessToken}`,
       "User-Agent": "cc-switch/1.0",
       "New-Api-User": channel.userId,
     }),
   )
 
-  const data = asRecord(response.data)
-
-  if (response.success && data) {
+  if (response.success && isRecord(response.data)) {
+    const data = response.data
     const quota = asNumber(data.quota) ?? 0
     const usedQuota = asNumber(data.used_quota) ?? 0
 
@@ -108,6 +120,10 @@ export async function checkChannelBalance(channelId: string) {
   const channel = await getChannel(channelId)
   if (!channel) {
     return null
+  }
+
+  if (hasUpstreamLogin(channel)) {
+    return syncUpstreamProvider(channel.id)
   }
 
   try {
