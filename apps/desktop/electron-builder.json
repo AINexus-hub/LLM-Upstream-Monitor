@@ -1,0 +1,28 @@
+{
+  "appId": "com.kazi6de1b.llm-upstream-monitor",
+  "productName": "LLM Upstream Monitor",
+  "asar": true,
+  "npmRebuild": false,
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "package.json",
+    "apps/api/dist/**/*",
+    "apps/web/dist/**/*",
+    "apps/desktop/dist/**/*",
+    "packages/shared/dist/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "artifactName": "LLM-Upstream-Monitor-${version}-portable.${ext}"
+  },
+  "extraMetadata": {
+    "main": "apps/desktop/dist/main.js"
+  }
+}

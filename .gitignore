@@ -14,3 +14,4 @@ Thumbs.db
 coverage/
 .vite/
 *.tsbuildinfo
+release/
