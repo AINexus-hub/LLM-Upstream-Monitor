@@ -3,15 +3,58 @@
   "productName": "LLM Upstream Monitor",
   "asar": true,
   "npmRebuild": false,
+  "compression": "maximum",
+  "removePackageScripts": true,
+  "removePackageKeywords": true,
+  "electronLanguages": ["en-US", "zh-CN"],
+  "afterPack": "apps/desktop/after-pack.cjs",
   "directories": {
     "output": "release"
   },
   "files": [
     "package.json",
-    "apps/api/dist/**/*",
-    "apps/web/dist/**/*",
-    "apps/desktop/dist/**/*",
-    "packages/shared/dist/**/*"
+    {
+      "from": "apps/api/dist",
+      "to": "apps/api/dist",
+      "filter": ["**/*", "!**/*.map", "!**/*.test.*", "!**/*.d.ts"]
+    },
+    {
+      "from": "apps/web/dist",
+      "to": "apps/web/dist",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "apps/desktop/dist",
+      "to": "apps/desktop/dist",
+      "filter": ["**/*", "!**/*.map", "!**/*.d.ts"]
+    },
+    {
+      "from": "packages/shared/dist",
+      "to": "packages/shared/dist",
+      "filter": ["**/*", "!**/*.map", "!**/*.d.ts"]
+    },
+    "!**/*.{md,markdown,ts,tsx,map}",
+    "!**/{test,tests,__tests__,powered-test,example,examples,benchmark,benchmarks,docs,doc,coverage}{,/**/*}",
+    "!**/{.eslintrc,.eslintrc.*,eslint.config.*,.prettierrc,.prettierrc.*,prettier.config.*,tsconfig.*,*.tsbuildinfo}",
+    "!**/{CHANGELOG,CHANGELOG.md,README,README.md,readme,readme.md,LICENSE.txt,LICENSE.md,HISTORY.md}",
+    "!**/node_modules/.bin{,/**/*}",
+    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,test,tests,__tests__,example,examples,docs,doc,benchmark,benchmarks}",
+    "!**/node_modules/**/{test,tests,__tests__,example,examples,docs,doc,benchmark,benchmarks}{,/**/*}",
+    "!**/node_modules/**/*.{md,markdown,ts,tsx,map,d.ts}",
+    "!**/node_modules/**/{.eslintrc,.eslintrc.js,eslint.config.js,.prettierrc,tsconfig.json,tsconfig.*.json}",
+    "!**/node_modules/@types{,/**/*}",
+    "!**/node_modules/typescript{,/**/*}",
+    "!**/node_modules/electron{,/**/*}",
+    "!**/node_modules/electron-builder{,/**/*}",
+    "!**/node_modules/vitest{,/**/*}",
+    "!**/node_modules/@vitest{,/**/*}",
+    "!**/node_modules/prettier{,/**/*}",
+    "!**/node_modules/eslint{,/**/*}",
+    "!**/node_modules/**/node_modules/@types{,/**/*}"
+  ],
+  "asarUnpack": [
+    "**/node_modules/@libsql/**/*.node",
+    "**/node_modules/libsql/**/*.node"
   ],
   "win": {
     "target": [
@@ -20,6 +63,10 @@
         "arch": ["x64"]
       }
     ],
+    "artifactName": "LLM-Upstream-Monitor-${version}-portable.${ext}",
+    "signAndEditExecutable": false
+  },
+  "portable": {
     "artifactName": "LLM-Upstream-Monitor-${version}-portable.${ext}"
   },
   "extraMetadata": {

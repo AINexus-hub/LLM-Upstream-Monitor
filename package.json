@@ -2,6 +2,25 @@
   "name": "llm-upstream-monitor",
   "version": "0.1.0",
   "private": true,
+  "description": "Local-first NewAPI / Sub2API balance monitor with Web UI and Windows portable desktop app",
+  "author": "Kazi6de1b",
+  "license": "MIT",
+  "homepage": "https://github.com/Kazi6de1b/LLM-Upstream-Monitor",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kazi6de1b/LLM-Upstream-Monitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Kazi6de1b/LLM-Upstream-Monitor/issues"
+  },
+  "keywords": [
+    "llm",
+    "newapi",
+    "sub2api",
+    "balance-monitor",
+    "electron",
+    "fastify"
+  ],
   "type": "module",
   "workspaces": [
     "apps/*",
