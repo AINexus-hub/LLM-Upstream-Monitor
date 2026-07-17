@@ -225,26 +225,38 @@ export async function updateChannel(
     type: input.type ?? current.type,
     requestUrl: input.requestUrl ?? current.requestUrl,
     officialUrl: input.officialUrl === undefined ? current.officialUrl : input.officialUrl || null,
-    upstreamLoginUrl:
-      input.upstreamLoginUrl === undefined ? current.upstreamLoginUrl : input.upstreamLoginUrl || null,
-    upstreamUsername:
-      input.upstreamUsername === undefined ? current.upstreamUsername : input.upstreamUsername || null,
-    upstreamPassword:
-      input.upstreamPassword === undefined || input.upstreamPassword === ""
-        ? current.upstreamPassword
-        : input.upstreamPassword,
-    upstreamAccessToken:
-      input.upstreamAccessToken === undefined || input.upstreamAccessToken === ""
-        ? current.upstreamAccessToken
-        : input.upstreamAccessToken,
-    upstreamRefreshToken:
-      input.upstreamRefreshToken === undefined || input.upstreamRefreshToken === ""
-        ? current.upstreamRefreshToken
-        : input.upstreamRefreshToken,
-    upstreamTokenExpiresAt:
-      input.upstreamTokenExpiresAt === undefined
-        ? current.upstreamTokenExpiresAt
-        : input.upstreamTokenExpiresAt || null,
+    upstreamLoginUrl: nextNullableUpstreamValue(
+      input.clearUpstreamSession,
+      current.upstreamLoginUrl,
+      input.upstreamLoginUrl,
+    ),
+    upstreamUsername: nextNullableUpstreamValue(
+      input.clearUpstreamSession,
+      current.upstreamUsername,
+      input.upstreamUsername,
+    ),
+    upstreamPassword: nextSecretUpstreamValue(
+      input.clearUpstreamSession,
+      current.upstreamPassword,
+      input.upstreamPassword,
+    ),
+    upstreamAccessToken: nextSecretUpstreamValue(
+      input.clearUpstreamSession,
+      current.upstreamAccessToken,
+      input.upstreamAccessToken,
+    ),
+    upstreamRefreshToken: nextSecretUpstreamValue(
+      input.clearUpstreamSession,
+      current.upstreamRefreshToken,
+      input.upstreamRefreshToken,
+    ),
+    upstreamTokenExpiresAt: nextNullableUpstreamValue(
+      input.clearUpstreamSession,
+      current.upstreamTokenExpiresAt,
+      input.upstreamTokenExpiresAt,
+    ),
+    upstreamLastSyncAt: input.clearUpstreamSession ? null : current.upstreamLastSyncAt,
+    upstreamLastSyncError: input.clearUpstreamSession ? null : current.upstreamLastSyncError,
     rechargeRate: input.rechargeRate ?? current.rechargeRate,
     alertThreshold: input.alertThreshold === undefined ? current.alertThreshold : input.alertThreshold,
     balanceAlertEnabled: input.balanceAlertEnabled ?? current.balanceAlertEnabled,
@@ -273,6 +285,8 @@ export async function updateChannel(
       upstream_access_token = ?,
       upstream_refresh_token = ?,
       upstream_token_expires_at = ?,
+      upstream_last_sync_at = ?,
+      upstream_last_sync_error = ?,
       recharge_rate = ?,
       alert_threshold = ?,
       balance_alert_enabled = ?,
@@ -296,6 +310,8 @@ export async function updateChannel(
       next.upstreamAccessToken,
       next.upstreamRefreshToken,
       next.upstreamTokenExpiresAt,
+      next.upstreamLastSyncAt,
+      next.upstreamLastSyncError,
       next.rechargeRate,
       next.alertThreshold,
       next.balanceAlertEnabled ? 1 : 0,
@@ -312,6 +328,69 @@ export async function updateChannel(
   })
 
   return getPublicChannel(id)
+}
+
+export async function deleteChannel(id: string): Promise<boolean> {
+  const current = await getChannel(id)
+  if (!current) {
+    return false
+  }
+
+  await db.batch(
+    [
+      {
+        sql: "delete from balance_checks where channel_id = ?",
+        args: [id],
+      },
+      {
+        sql: "delete from upstream_snapshots where channel_id = ?",
+        args: [id],
+      },
+      {
+        sql: "delete from notifications where channel_id = ?",
+        args: [id],
+      },
+      {
+        sql: "delete from task_runs where channel_id = ?",
+        args: [id],
+      },
+      {
+        sql: "delete from notification_delivery_state where channel_id = ?",
+        args: [id],
+      },
+      {
+        sql: "delete from channels where id = ?",
+        args: [id],
+      },
+    ],
+    "write",
+  )
+
+  return true
+}
+
+function nextNullableUpstreamValue(
+  shouldClear: boolean | undefined,
+  current: string | null,
+  value: string | null | undefined,
+) {
+  if (shouldClear) {
+    return null
+  }
+
+  return value === undefined ? current : value || null
+}
+
+function nextSecretUpstreamValue(
+  shouldClear: boolean | undefined,
+  current: string | null,
+  value: string | undefined,
+) {
+  if (shouldClear) {
+    return null
+  }
+
+  return value === undefined || value === "" ? current : value
 }
 
 export type UpstreamSessionUpdate = {

@@ -125,6 +125,7 @@ function App() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [checkingId, setCheckingId] = useState<string>()
+  const [deletingId, setDeletingId] = useState<string>()
   const [syncingId, setSyncingId] = useState<string>()
   const [diagnosingId, setDiagnosingId] = useState<string>()
   const [refreshingSnapshotId, setRefreshingSnapshotId] = useState<string>()
@@ -509,6 +510,40 @@ function App() {
     }
   }
 
+  async function handleDeleteChannel(channel: PublicChannel) {
+    if (!window.confirm(`确定删除供应商“${channel.name}”吗？相关检测记录和上游快照也会一起删除。`)) {
+      return
+    }
+
+    setDeletingId(channel.id)
+    setError(undefined)
+    setMessage(undefined)
+
+    try {
+      await request<{ ok: boolean }>(
+        `/api/channels/${channel.id}`,
+        {
+          method: "DELETE",
+        },
+        authToken,
+      )
+      setMessage("供应商已删除")
+      setChecksByChannel((current) => {
+        const next = { ...current }
+        delete next[channel.id]
+        return next
+      })
+      setUpstreamSnapshots((current) =>
+        current.filter((snapshot) => snapshot.channelId !== channel.id),
+      )
+      await loadChannels()
+    } catch (caught) {
+      handleRequestError(caught, "删除供应商失败")
+    } finally {
+      setDeletingId(undefined)
+    }
+  }
+
   async function handleCheck(channelId: string) {
     setCheckingId(channelId)
     setError(undefined)
@@ -789,12 +824,14 @@ function App() {
           <ChannelsPage
             channels={channels}
             checkingId={checkingId}
+            deletingId={deletingId}
             diagnosingId={diagnosingId}
             syncingId={syncingId}
             isLoading={isLoading}
             selectedChannelId={selectedChannelId}
             onCreate={openCreateModal}
             onDiagnose={handleDiagnoseChannel}
+            onDelete={handleDeleteChannel}
             onEdit={openEditModal}
             onSelectChannel={setSelectedChannelId}
             onSyncCheck={handleSyncCheck}

@@ -138,6 +138,7 @@ export function formToPayload(form: ChannelFormState): ChannelPayload {
 
   const upstreamTokenExpiresAt = form.upstreamTokenExpiresAt.trim()
   payload.upstreamTokenExpiresAt = upstreamTokenExpiresAt || null
+  payload.clearUpstreamSession = form.setupMode === "simple"
 
   const rechargeRate = form.rechargeRate.trim()
   if (rechargeRate) {

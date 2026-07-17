@@ -2,6 +2,7 @@ import { z } from "zod"
 import type { FastifyInstance, FastifyReply } from "fastify"
 import {
   createChannel,
+  deleteChannel,
   getPublicChannel,
   listChannels,
   listChecks,
@@ -54,6 +55,7 @@ const channelSchema = z.object({
   upstreamAccessToken: z.string().trim().optional(),
   upstreamRefreshToken: z.string().trim().optional(),
   upstreamTokenExpiresAt: optionalDateTimeSchema,
+  clearUpstreamSession: z.boolean().optional(),
   rechargeRate: z.coerce.number().positive().default(1),
   alertThreshold: z.coerce.number().nonnegative().nullish(),
   balanceAlertEnabled: z.boolean().default(true),
@@ -305,6 +307,15 @@ export async function registerChannelRoutes(app: FastifyInstance) {
     }
 
     return { data: channel }
+  })
+
+  app.delete<{ Params: { id: string } }>("/api/channels/:id", async (request, reply) => {
+    const didDelete = await deleteChannel(request.params.id)
+    if (!didDelete) {
+      return reply.code(404).send({ message: "渠道不存在" })
+    }
+
+    return { data: { ok: true } }
   })
 
   app.post<{ Params: { id: string } }>("/api/channels/:id/check", async (request, reply) => {

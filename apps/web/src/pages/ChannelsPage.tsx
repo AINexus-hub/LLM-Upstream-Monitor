@@ -1,5 +1,5 @@
 import type { PublicChannel } from "@llm-upstream-monitor/shared"
-import { Activity, ExternalLink, Pencil, Plus, RefreshCw } from "lucide-react"
+import { Activity, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { EmptyState } from "@/components/common/display"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,12 +11,14 @@ import { statusLabel } from "@/utils/dashboard"
 type ChannelsPageProps = {
   channels: PublicChannel[]
   checkingId?: string
+  deletingId?: string
   diagnosingId?: string
   syncingId?: string
   isLoading: boolean
   selectedChannelId?: string
   onCreate: () => void
   onDiagnose: (channel: PublicChannel) => void
+  onDelete: (channel: PublicChannel) => void
   onEdit: (channel: PublicChannel) => void
   onSelectChannel: (channelId: string) => void
   onSyncCheck: (channel: PublicChannel) => void
@@ -25,12 +27,14 @@ type ChannelsPageProps = {
 export default function ChannelsPage({
   channels,
   checkingId,
+  deletingId,
   diagnosingId,
   syncingId,
   isLoading,
   selectedChannelId,
   onCreate,
   onDiagnose,
+  onDelete,
   onEdit,
   onSelectChannel,
   onSyncCheck,
@@ -201,6 +205,15 @@ export default function ChannelsPage({
                     <Button size="sm" variant="secondary" onClick={() => onEdit(channel)}>
                       <Pencil data-icon="inline-start" aria-hidden="true" />
                       编辑
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => onDelete(channel)}
+                      disabled={deletingId === channel.id}
+                    >
+                      <Trash2 data-icon="inline-start" aria-hidden="true" />
+                      {deletingId === channel.id ? "删除中" : "删除"}
                     </Button>
                   </div>
                 </article>

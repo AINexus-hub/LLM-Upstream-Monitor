@@ -13,6 +13,9 @@ type TestNotificationInput = {
 }
 
 const serviceName = "LLM Upstream Monitor"
+const smtpConnectionTimeoutMs = 15_000
+const smtpGreetingTimeoutMs = 10_000
+const smtpSocketTimeoutMs = 20_000
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -112,6 +115,9 @@ function buildTransport(settings: NotificationSettings) {
     host: settings.smtp.host,
     port: settings.smtp.port,
     secure: settings.smtp.secure,
+    connectionTimeout: smtpConnectionTimeoutMs,
+    greetingTimeout: smtpGreetingTimeoutMs,
+    socketTimeout: smtpSocketTimeoutMs,
     auth: settings.smtp.username
       ? {
           user: settings.smtp.username,

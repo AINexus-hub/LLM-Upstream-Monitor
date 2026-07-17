@@ -124,7 +124,7 @@ export default function NotificationSettingsPage({
   const telegramEnabledTypeSet = useMemo(() => new Set(form.enabledTypes), [form.enabledTypes])
 
   function validate(target?: NotificationChannel) {
-    if ((target === "telegram" || form.telegramEnabled) && form.telegramEnabled) {
+    if (target === "telegram" || form.telegramEnabled) {
       if (!form.telegramBotToken && !settings?.telegram.hasBotToken) {
         return "请填写 Telegram Bot Token"
       }
@@ -133,7 +133,7 @@ export default function NotificationSettingsPage({
       }
     }
 
-    if ((target === "smtp" || form.smtpEnabled) && form.smtpEnabled) {
+    if (target === "smtp" || form.smtpEnabled) {
       if (!form.smtpHost.trim()) {
         return "请填写 SMTP Host"
       }

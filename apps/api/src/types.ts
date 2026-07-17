@@ -69,6 +69,7 @@ export type CreateChannelInput = {
   upstreamAccessToken?: string
   upstreamRefreshToken?: string
   upstreamTokenExpiresAt?: string | null
+  clearUpstreamSession?: boolean
   rechargeRate?: number
   alertThreshold?: number | null
   balanceAlertEnabled?: boolean
