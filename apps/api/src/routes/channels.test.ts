@@ -23,7 +23,7 @@ describe("channel routes", () => {
   })
 
   const authHeaders = {
-    authorization: "Bearer IC49xgfi0AGHcE9wzXoPNs4TfbPqvZQG",
+    authorization: "Bearer llm-monitor",
   }
 
   it("parses includeArchived=false as false", async () => {

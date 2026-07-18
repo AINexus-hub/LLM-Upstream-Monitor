@@ -85,7 +85,6 @@
 git clone https://github.com/Kazi6de1b/LLM-Upstream-Monitor.git
 cd LLM-Upstream-Monitor
 cp .env.example .env          # Windows: copy .env.example .env
-# 编辑 .env，务必将 AUTH_TOKEN 改成你自己的强随机字符串
 npm install
 npm run dev
 ```
@@ -96,7 +95,15 @@ npm run dev
 | API | http://localhost:3000 |
 | 健康检查 | http://localhost:3000/health |
 
-登录密码 = `.env` 中的 `AUTH_TOKEN`（也是 API 的 Bearer Token）。
+### 默认登录
+
+| 项目 | 值 |
+| --- | --- |
+| **默认访问 Token / 登录密码** | `llm-monitor` |
+
+- Web / 便携版登录页输入上述 Token 即可进入。
+- 未设置环境变量时，API 也使用该默认值（便于开箱即用）。
+- 可通过 `AUTH_TOKEN` 覆盖；**暴露到公网或共享机器时务必改成强随机字符串**。
 
 ### 2. 桌面端开发
 
@@ -118,6 +125,12 @@ npm run desktop:build
 release/LLM-Upstream-Monitor-<version>-portable.exe
 ```
 
+双击运行后，在登录页输入默认 Token：
+
+```text
+llm-monitor
+```
+
 便携版数据默认写在可执行文件同级：
 
 ```text
@@ -135,6 +148,43 @@ $env:LLM_UPSTREAM_MONITOR_DATA_DIR = "D:\llm-monitor-data"
 
 ---
 
+## 添加供应商
+
+### 简易模式
+
+只需 NewAPI / Sub2API 的 API 凭证，适合只做余额检测与告警。
+
+### 账号接入模式（Sub2API 后台 + Refresh Token）
+
+用于拉取上游账号看板（用量、分组、费率等）。程序会用 **Refresh Token** 调用上游 `/auth/refresh` 刷新登录态，再抓取后台数据。
+
+当上游站点启用了 **Cloudflare / 人机验证** 时，本工具往往无法直接用账号密码完成网页登录。推荐流程：
+
+1. 在 **浏览器** 中打开上游供应商后台，手动完成登录（包括 Cloudflare 验证码）。
+2. 登录成功后，打开开发者工具：
+   - Chrome / Edge：`F12` → **Application（应用程序）** → **Local Storage**
+   - 或 **Application** → **Session Storage**（部分站点存这里）
+3. 在对应上游域名下查找类似键名：
+   - `refresh_token`
+   - `refreshToken`
+   - 或嵌套在 JSON 对象里的 `refresh_token` 字段  
+     （常见于 Sub2API 风格前端；不同站点键名可能略有差异，可搜索 `refresh`）
+4. 复制该 **Refresh Token** 字符串。
+5. 回到本应用 → **供应商管理** → **添加供应商** → 选择 **账号接入**：
+   - 填写 **请求地址**（上游站点根 URL，如 `https://your-provider.example`）
+   - 填写 **Sub2API API Key**（余额检测用）
+   - 将复制的值粘贴到 **Refresh token** 字段
+   - 可选：填写 Access token、Token 过期时间；若只填 Refresh token，程序会在需要时自动刷新
+6. 保存后，可在 **账号看板** 手动同步，或等待定时任务拉取快照。
+
+**提示：**
+
+- Refresh Token 属于敏感凭证，勿截图公开、勿提交到 Git。
+- Token 失效后（登出、过期、被吊销），需重新按上述步骤从浏览器取出并更新。
+- 若站点同时开启 2FA 且无法导出 refresh token，账号接入可能不可用，请改用简易模式做余额检测。
+
+---
+
 ## 配置
 
 复制 [`.env.example`](./.env.example) 为 `.env`：
@@ -144,7 +194,7 @@ $env:LLM_UPSTREAM_MONITOR_DATA_DIR = "D:\llm-monitor-data"
 | `API_HOST` | `0.0.0.0` | API 监听地址 |
 | `API_PORT` | `3000` | API 端口 |
 | `DATABASE_URL` | `file:./data/llm-upstream-monitor.db` | SQLite（libSQL）路径 |
-| `AUTH_TOKEN` | 内置默认值（**务必修改**） | 登录密码 / Bearer Token |
+| `AUTH_TOKEN` | `llm-monitor` | 登录密码 / API Bearer Token |
 
 前端可选：
 
@@ -248,9 +298,10 @@ Authorization: Bearer <AUTH_TOKEN>
 
 ## 安全说明
 
-- Token / API Key **不会在列表接口中明文返回**，前端只看到 `hasAccessToken` / `hasApiKey` 等状态位。
+- 默认登录 Token 为 `llm-monitor`，仅适合 **本机 / 受信网络** 开箱使用；对外部署请通过 `AUTH_TOKEN` 修改。
+- 供应商 Token / API Key / Refresh Token **不会在列表接口中明文返回**，前端只看到 `hasAccessToken` / `hasApiKey` 等状态位。
 - 查询逻辑由后端内置模板实现，**不会执行用户任意脚本**。
-- 设计为 **本地或受信网络** 使用。若暴露到公网，请务必：
+- 若暴露到公网，请务必：
   1. 修改默认 `AUTH_TOKEN`
   2. 使用 HTTPS 反向代理
   3. 限制访问来源（防火墙 / VPN）

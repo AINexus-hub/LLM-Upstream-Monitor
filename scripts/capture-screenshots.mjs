@@ -6,7 +6,7 @@ const chromePath =
   process.env.CHROME_PATH ??
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 const outDir = path.resolve("docs/images")
-const token = process.env.AUTH_TOKEN ?? "IC49xgfi0AGHcE9wzXoPNs4TfbPqvZQG"
+const token = process.env.AUTH_TOKEN ?? "llm-monitor"
 const base = process.env.WEB_URL ?? "http://localhost:5300"
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
