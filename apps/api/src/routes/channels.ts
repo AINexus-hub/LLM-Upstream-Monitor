@@ -59,6 +59,7 @@ const channelSchema = z.object({
   rechargeRate: z.coerce.number().positive().default(1),
   alertThreshold: z.coerce.number().nonnegative().nullish(),
   balanceAlertEnabled: z.boolean().default(true),
+  balanceCheckEnabled: z.boolean().default(true),
   groupChangeAlertEnabled: z.boolean().default(true),
   groupRateAlertEnabled: z.boolean().default(true),
   accessToken: z.string().trim().optional(),

@@ -158,4 +158,32 @@ describe("channel routes", () => {
     const body = JSON.parse(listResponse.body) as { data: Array<{ id: string }> }
     expect(body.data).toEqual([])
   })
+
+  it("persists a disabled balance check flag", async () => {
+    const { app } = await loadApp()
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/channels",
+      headers: authHeaders,
+      payload: {
+        name: "Toggle Test",
+        type: "sub2api",
+        requestUrl: "https://example.com",
+        apiKey: "test-key",
+        timeoutSeconds: 30,
+        checkIntervalMinutes: 5,
+      },
+    })
+    const created = JSON.parse(createResponse.body) as { data: { id: string } }
+
+    const updateResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/channels/${created.data.id}`,
+      headers: authHeaders,
+      payload: { balanceCheckEnabled: false },
+    })
+
+    expect(updateResponse.statusCode).toBe(200)
+    expect(JSON.parse(updateResponse.body).data.balanceCheckEnabled).toBe(false)
+  })
 })
