@@ -5,6 +5,8 @@ import type {
 } from "@llm-upstream-monitor/shared"
 import { randomUUID } from "node:crypto"
 import { db } from "../db.js"
+import { config } from "../config.js"
+import { encryptSecret } from "../crypto.js"
 
 type DbSnapshotRow = {
   id: string
@@ -46,7 +48,7 @@ export async function saveUpstreamSnapshot(input: {
       input.provider,
       input.fetchedAt,
       JSON.stringify(input.summary),
-      JSON.stringify(input.raw),
+      encryptSecret(JSON.stringify(input.raw), config.ENCRYPTION_KEY),
       now,
     ],
   })

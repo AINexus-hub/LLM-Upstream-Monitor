@@ -7,6 +7,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default("file:./data/llm-upstream-monitor.db"),
   // Default is intentional for portable / first-run local use; override via AUTH_TOKEN in production.
   AUTH_TOKEN: z.string().min(1).default("llm-monitor"),
+  ENCRYPTION_KEY: z.string().min(16).default("change-this-encryption-key"),
 })
 
 export const config = envSchema.parse(process.env)

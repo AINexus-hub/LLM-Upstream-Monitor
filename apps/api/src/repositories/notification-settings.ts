@@ -6,6 +6,8 @@ import type {
 } from "@llm-upstream-monitor/shared"
 import { randomUUID } from "node:crypto"
 import { db } from "../db.js"
+import { config } from "../config.js"
+import { decryptSecret, encryptSecret } from "../crypto.js"
 
 export const notificationTypes = [
   "balance_alert",
@@ -144,7 +146,7 @@ function rowToSettings(row: DbNotificationSettingsRow): NotificationSettings {
     id: row.id,
     telegram: {
       enabled: Boolean(row.telegram_enabled),
-      botToken: row.telegram_bot_token ?? undefined,
+      botToken: decryptSecret(row.telegram_bot_token, config.ENCRYPTION_KEY) ?? undefined,
       chatId: row.telegram_chat_id ?? undefined,
     },
     smtp: {
@@ -153,7 +155,7 @@ function rowToSettings(row: DbNotificationSettingsRow): NotificationSettings {
       port: row.smtp_port ?? undefined,
       secure: Boolean(row.smtp_secure),
       username: row.smtp_username ?? undefined,
-      password: row.smtp_password ?? undefined,
+      password: decryptSecret(row.smtp_password, config.ENCRYPTION_KEY) ?? undefined,
       from: row.smtp_from ?? undefined,
       recipients: parseRecipients(row.smtp_recipients_json, row.smtp_to),
     },
@@ -342,14 +344,14 @@ export async function updateNotificationSettings(input: NotificationSettingsPayl
       where id = ?`,
     args: [
       next.telegram.enabled ? 1 : 0,
-      next.telegram.botToken ?? null,
+      encryptSecret(next.telegram.botToken, config.ENCRYPTION_KEY),
       next.telegram.chatId ?? null,
       next.smtp.enabled ? 1 : 0,
       next.smtp.host ?? null,
       next.smtp.port ?? null,
       next.smtp.secure ? 1 : 0,
       next.smtp.username ?? null,
-      next.smtp.password ?? null,
+      encryptSecret(next.smtp.password, config.ENCRYPTION_KEY),
       next.smtp.from ?? null,
       null,
       JSON.stringify(next.smtp.recipients),

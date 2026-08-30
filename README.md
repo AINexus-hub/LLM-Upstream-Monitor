@@ -195,6 +195,7 @@ $env:LLM_UPSTREAM_MONITOR_DATA_DIR = "D:\llm-monitor-data"
 | `API_PORT` | `3000` | API 端口 |
 | `DATABASE_URL` | `file:./data/llm-upstream-monitor.db` | SQLite（libSQL）路径 |
 | `AUTH_TOKEN` | `llm-monitor` | 登录密码 / API Bearer Token |
+| `ENCRYPTION_KEY` | 无安全生产默认值 | AES-256-GCM 凭证加密密钥，必须稳定保存，生产环境必填 |
 
 前端可选：
 
@@ -306,6 +307,8 @@ Authorization: Bearer <AUTH_TOKEN>
   2. 使用 HTTPS 反向代理
   3. 限制访问来源（防火墙 / VPN）
 - 数据库含密钥与历史，请控制文件权限并定期备份。
+- 凭证字段使用 `ENCRYPTION_KEY` 进行 AES-256-GCM 加密；升级旧数据库时会在启动阶段自动迁移已有明文凭证。
+- `ENCRYPTION_KEY` 丢失后无法解密已有凭证；更换密钥前必须先完成数据迁移或重新录入凭证。
 
 ---
 

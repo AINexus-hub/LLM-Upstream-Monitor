@@ -6,6 +6,9 @@ import { startBalanceScheduler } from "./scheduler.js"
 const app = createApp()
 
 try {
+  if (config.ENCRYPTION_KEY === "change-this-encryption-key") {
+    throw new Error("ENCRYPTION_KEY must be set to a unique secret before starting the API")
+  }
   await initDatabase()
   startBalanceScheduler()
 

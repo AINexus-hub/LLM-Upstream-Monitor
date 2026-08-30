@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { createClient } from "@libsql/client"
 import { config } from "./config.js"
+import { encryptSecret, isEncryptedSecret } from "./crypto.js"
 
 function resolveDatabasePath(databaseUrl: string) {
   if (!databaseUrl.startsWith("file:")) {
@@ -144,6 +145,55 @@ export async function initDatabase() {
   await ensureNotificationColumns()
   await ensureTaskRunTable()
   await ensureNotificationSettingsTable()
+  await migrateSensitiveValues()
+}
+
+async function migrateSensitiveValues() {
+  const channelColumns = [
+    "upstream_password",
+    "upstream_access_token",
+    "upstream_refresh_token",
+    "access_token",
+    "api_key",
+  ]
+  for (const column of channelColumns) {
+    const result = await db.execute(`select id, ${column} as value from channels where ${column} is not null`)
+    for (const row of result.rows) {
+      const value = String(row.value ?? "")
+      if (!value || isEncryptedSecret(value)) continue
+      await db.execute({
+        sql: `update channels set ${column} = ? where id = ?`,
+        args: [encryptSecret(value, config.ENCRYPTION_KEY) ?? null, String(row.id)],
+      })
+    }
+  }
+
+  const settings = await db.execute(
+    "select id, telegram_bot_token, smtp_password from notification_settings where telegram_bot_token is not null or smtp_password is not null",
+  )
+  for (const row of settings.rows) {
+    const botToken = String(row.telegram_bot_token ?? "")
+    const password = String(row.smtp_password ?? "")
+    await db.execute({
+      sql: "update notification_settings set telegram_bot_token = ?, smtp_password = ? where id = ?",
+      args: [
+        botToken && !isEncryptedSecret(botToken) ? encryptSecret(botToken, config.ENCRYPTION_KEY) : String(row.telegram_bot_token ?? "") || null,
+        password && !isEncryptedSecret(password) ? encryptSecret(password, config.ENCRYPTION_KEY) : String(row.smtp_password ?? "") || null,
+        String(row.id),
+      ],
+    })
+  }
+
+  const snapshots = await db.execute("select id, raw_json from upstream_snapshots")
+  for (const row of snapshots.rows) {
+    const raw = String(row.raw_json ?? "")
+    if (raw && !isEncryptedSecret(raw)) {
+      await db.execute({
+        sql: "update upstream_snapshots set raw_json = ? where id = ?",
+        args: [encryptSecret(raw, config.ENCRYPTION_KEY) ?? null, String(row.id)],
+      })
+    }
+  }
 }
 
 async function ensureChannelMetadataColumns() {
