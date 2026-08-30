@@ -25,10 +25,13 @@ const ChannelsPage = lazy(() => import("@/pages/ChannelsPage"))
 const NotificationCenterPage = lazy(() => import("@/pages/NotificationCenterPage"))
 const NotificationSettingsPage = lazy(() => import("@/pages/NotificationSettingsPage"))
 
+const configuredApiBaseUrl =
+  new URLSearchParams(window.location.search).get("apiBaseUrl") ?? import.meta.env.VITE_API_BASE_URL
 const API_BASE_URL =
-  new URLSearchParams(window.location.search).get("apiBaseUrl") ??
-  import.meta.env.VITE_API_BASE_URL ??
-  "http://localhost:3000"
+  configuredApiBaseUrl ??
+  (window.location.hostname === "localhost" && window.location.port === "5300"
+    ? "http://localhost:3000"
+    : window.location.origin)
 const authStorageKey = "llm-upstream-monitor-token"
 const themeStorageKey = "llm-upstream-monitor-theme"
 const localNotificationReadStorageKey = "llm-upstream-monitor-local-notification-read"
