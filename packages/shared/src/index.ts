@@ -14,6 +14,7 @@ export type ChannelConfig = {
   rechargeRate: number
   alertThreshold?: number | null
   balanceAlertEnabled: boolean
+  balanceCheckEnabled: boolean
   groupChangeAlertEnabled: boolean
   groupRateAlertEnabled: boolean
   timeoutSeconds: number
@@ -85,6 +86,7 @@ export type ChannelPayload = {
   rechargeRate?: number
   alertThreshold?: number | null
   balanceAlertEnabled?: boolean
+  balanceCheckEnabled?: boolean
   groupChangeAlertEnabled?: boolean
   groupRateAlertEnabled?: boolean
   accessToken?: string

@@ -24,6 +24,7 @@ type DbChannelRow = {
   recharge_rate: number | null
   alert_threshold: number | null
   balance_alert_enabled: number | null
+  balance_check_enabled: number | null
   group_change_alert_enabled: number | null
   group_rate_alert_enabled: number | null
   access_token: string | null
@@ -67,6 +68,7 @@ function mapChannel(row: DbChannelRow): ChannelRow {
     rechargeRate: row.recharge_rate ?? 1,
     alertThreshold: row.alert_threshold,
     balanceAlertEnabled: row.balance_alert_enabled !== 0,
+    balanceCheckEnabled: row.balance_check_enabled !== 0,
     groupChangeAlertEnabled: row.group_change_alert_enabled !== 0,
     groupRateAlertEnabled: row.group_rate_alert_enabled !== 0,
     accessToken: decryptSecret(row.access_token, config.ENCRYPTION_KEY),
@@ -114,6 +116,7 @@ function toPublicChannel(
     rechargeRate: channel.rechargeRate,
     alertThreshold: channel.alertThreshold ?? undefined,
     balanceAlertEnabled: channel.balanceAlertEnabled,
+    balanceCheckEnabled: channel.balanceCheckEnabled,
     groupChangeAlertEnabled: channel.groupChangeAlertEnabled,
     groupRateAlertEnabled: channel.groupRateAlertEnabled,
     timeoutSeconds: channel.timeoutSeconds,
@@ -174,10 +177,10 @@ export async function createChannel(input: CreateChannelInput): Promise<PublicCh
       id, name, type, request_url, official_url,
       upstream_login_url, upstream_username, upstream_password, upstream_access_token,
       upstream_refresh_token, upstream_token_expires_at,
-      recharge_rate, alert_threshold, balance_alert_enabled, group_change_alert_enabled,
+      recharge_rate, alert_threshold, balance_alert_enabled, balance_check_enabled, group_change_alert_enabled,
       group_rate_alert_enabled, access_token, user_id, api_key,
       timeout_seconds, check_interval_minutes, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       input.name,
@@ -193,6 +196,7 @@ export async function createChannel(input: CreateChannelInput): Promise<PublicCh
       input.rechargeRate ?? 1,
       input.alertThreshold ?? null,
       input.balanceAlertEnabled === false ? 0 : 1,
+      input.balanceCheckEnabled === false ? 0 : 1,
       input.groupChangeAlertEnabled === false ? 0 : 1,
       input.groupRateAlertEnabled === false ? 0 : 1,
       encryptSecret(input.accessToken, config.ENCRYPTION_KEY),
@@ -262,6 +266,7 @@ export async function updateChannel(
     rechargeRate: input.rechargeRate ?? current.rechargeRate,
     alertThreshold: input.alertThreshold === undefined ? current.alertThreshold : input.alertThreshold,
     balanceAlertEnabled: input.balanceAlertEnabled ?? current.balanceAlertEnabled,
+    balanceCheckEnabled: input.balanceCheckEnabled ?? current.balanceCheckEnabled,
     groupChangeAlertEnabled: input.groupChangeAlertEnabled ?? current.groupChangeAlertEnabled,
     groupRateAlertEnabled: input.groupRateAlertEnabled ?? current.groupRateAlertEnabled,
     accessToken:
@@ -292,6 +297,7 @@ export async function updateChannel(
       recharge_rate = ?,
       alert_threshold = ?,
       balance_alert_enabled = ?,
+      balance_check_enabled = ?,
       group_change_alert_enabled = ?,
       group_rate_alert_enabled = ?,
       access_token = ?,
@@ -317,6 +323,7 @@ export async function updateChannel(
       next.rechargeRate,
       next.alertThreshold,
       next.balanceAlertEnabled ? 1 : 0,
+      next.balanceCheckEnabled ? 1 : 0,
       next.groupChangeAlertEnabled ? 1 : 0,
       next.groupRateAlertEnabled ? 1 : 0,
       encryptSecret(next.accessToken, config.ENCRYPTION_KEY),

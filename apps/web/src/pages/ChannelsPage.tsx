@@ -247,10 +247,14 @@ export default function ChannelsPage({
                     <Button
                       size="sm"
                       onClick={() => onSyncCheck(channel)}
-                      disabled={isSyncing}
+                      disabled={isSyncing || (!usesUpstreamLogin && !channel.balanceCheckEnabled)}
                     >
                       <RefreshCw data-icon="inline-start" aria-hidden="true" />
-                      {isSyncing ? syncingLabel : syncLabel}
+                      {!usesUpstreamLogin && !channel.balanceCheckEnabled
+                        ? "检测已关闭"
+                        : isSyncing
+                          ? syncingLabel
+                          : syncLabel}
                     </Button>
                     <Button
                       size="sm"

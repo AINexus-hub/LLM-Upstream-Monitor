@@ -123,6 +123,11 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
                 }
               />
               <CheckboxInput
+                label="余额检测"
+                checked={form.balanceCheckEnabled}
+                onChange={(balanceCheckEnabled) => setForm({ ...form, balanceCheckEnabled })}
+              />
+              <CheckboxInput
                 label="分组变动告警"
                 checked={form.groupChangeAlertEnabled}
                 onChange={(groupChangeAlertEnabled) =>

@@ -15,6 +15,7 @@ function channel(overrides: Partial<PublicChannel>): PublicChannel {
     requestUrl: "https://example.test",
     rechargeRate: 1,
     balanceAlertEnabled: true,
+    balanceCheckEnabled: true,
     groupChangeAlertEnabled: true,
     groupRateAlertEnabled: true,
     timeoutSeconds: 1,

@@ -14,6 +14,7 @@ import type { TaskRunType } from "@llm-upstream-monitor/shared"
 type DueChannelRow = {
   id: string
   has_upstream_login: number
+  balance_check_enabled: number
 }
 
 type TaskResultWithSuccess = {
@@ -74,6 +75,17 @@ export async function runManualTask<T>(
   taskType: TaskRunType,
   task: () => Promise<T | null>,
 ) {
+  if (taskType === "balance_check") {
+    const channel = await db.execute({
+      sql: "select balance_check_enabled from channels where id = ?",
+      args: [channelId],
+    })
+    if (channel.rows.length === 0) return null
+    if (Number((channel.rows[0] as { balance_check_enabled?: number }).balance_check_enabled) === 0) {
+      throw new Error("余额检测已关闭")
+    }
+  }
+
   const running = await findRunningTaskRun({ channelId, taskType })
   if (running) {
     throw new TaskAlreadyRunningError(running.id)
@@ -107,6 +119,23 @@ export async function runScheduledTask(
   taskType: TaskRunType,
   task: () => Promise<unknown>,
 ) {
+  if (taskType === "balance_check") {
+    const channel = await db.execute({
+      sql: "select balance_check_enabled from channels where id = ?",
+      args: [channelId],
+    })
+    if (channel.rows.length === 0 || Number((channel.rows[0] as { balance_check_enabled?: number }).balance_check_enabled) === 0) {
+      if (channel.rows.length > 0) {
+        await createSkippedTaskRun({
+          channelId,
+          taskType,
+          reason: "余额检测已关闭",
+        })
+      }
+      return
+    }
+  }
+
   const running = await findRunningTaskRun({ channelId, taskType })
   if (running) {
     await createSkippedTaskRun({

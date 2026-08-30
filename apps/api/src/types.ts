@@ -17,6 +17,7 @@ export type ChannelRow = {
   rechargeRate: number
   alertThreshold: number | null
   balanceAlertEnabled: boolean
+  balanceCheckEnabled: boolean
   groupChangeAlertEnabled: boolean
   groupRateAlertEnabled: boolean
   accessToken: string | null
@@ -42,6 +43,7 @@ export type PublicChannel = {
   rechargeRate: number
   alertThreshold?: number | null
   balanceAlertEnabled: boolean
+  balanceCheckEnabled: boolean
   groupChangeAlertEnabled: boolean
   groupRateAlertEnabled: boolean
   timeoutSeconds: number
@@ -73,6 +75,7 @@ export type CreateChannelInput = {
   rechargeRate?: number
   alertThreshold?: number | null
   balanceAlertEnabled?: boolean
+  balanceCheckEnabled?: boolean
   groupChangeAlertEnabled?: boolean
   groupRateAlertEnabled?: boolean
   accessToken?: string

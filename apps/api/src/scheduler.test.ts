@@ -158,4 +158,27 @@ describe("scheduler task locking", () => {
     const records = await taskRuns.listTaskRuns({ channelId: channel.id, limit: 10 })
     expect(records.some((record) => record.metadata && typeof record.metadata === "object" && "trigger" in record.metadata)).toBe(true)
   })
+
+  it("skips disabled balance checks for manual and scheduled runs", async () => {
+    const { channels, scheduler, taskRuns } = await loadModules()
+    const channel = await channels.createChannel({
+      name: "Disabled Balance Channel",
+      type: "sub2api",
+      requestUrl: "https://example.test",
+      apiKey: "test-key",
+      timeoutSeconds: 1,
+      checkIntervalMinutes: 1,
+      balanceCheckEnabled: false,
+    })
+
+    const manualTask = vi.fn()
+    await expect(
+      scheduler.runManualTask(channel.id, "balance_check", manualTask),
+    ).rejects.toThrow("余额检测已关闭")
+    await scheduler.runScheduledTask(channel.id, "balance_check", vi.fn())
+
+    expect(manualTask).not.toHaveBeenCalled()
+    const records = await taskRuns.listTaskRuns({ channelId: channel.id, limit: 10 })
+    expect(records.some((record) => record.status === "skipped")).toBe(true)
+  })
 })

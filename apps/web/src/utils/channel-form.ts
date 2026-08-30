@@ -17,6 +17,7 @@ export const emptyForm: ChannelFormState = {
   rechargeRate: "",
   alertThreshold: "10",
   balanceAlertEnabled: true,
+  balanceCheckEnabled: true,
   groupChangeAlertEnabled: true,
   groupRateAlertEnabled: true,
   accessToken: "",
@@ -47,6 +48,7 @@ export function channelToForm(channel: PublicChannel): ChannelFormState {
     rechargeRate: String(channel.rechargeRate ?? 1),
     alertThreshold: channel.alertThreshold === undefined ? "" : String(channel.alertThreshold),
     balanceAlertEnabled: channel.balanceAlertEnabled,
+    balanceCheckEnabled: channel.balanceCheckEnabled,
     groupChangeAlertEnabled: channel.groupChangeAlertEnabled,
     groupRateAlertEnabled: channel.groupRateAlertEnabled,
     accessToken: "",
@@ -148,6 +150,7 @@ export function formToPayload(form: ChannelFormState): ChannelPayload {
   const alertThreshold = form.alertThreshold.trim()
   payload.alertThreshold = alertThreshold ? Number(alertThreshold) : null
   payload.balanceAlertEnabled = form.balanceAlertEnabled
+  payload.balanceCheckEnabled = form.balanceCheckEnabled
   payload.groupChangeAlertEnabled = form.groupChangeAlertEnabled
   payload.groupRateAlertEnabled = form.groupRateAlertEnabled
 

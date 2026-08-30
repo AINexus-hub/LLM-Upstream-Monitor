@@ -43,6 +43,7 @@ export async function initDatabase() {
         recharge_rate real not null default 1,
         alert_threshold real,
         balance_alert_enabled integer not null default 1,
+        balance_check_enabled integer not null default 1,
         group_change_alert_enabled integer not null default 1,
         group_rate_alert_enabled integer not null default 1,
         access_token text,
@@ -251,6 +252,10 @@ async function ensureChannelMetadataColumns() {
 
   if (!columnNames.has("balance_alert_enabled")) {
     await db.execute("alter table channels add column balance_alert_enabled integer not null default 1")
+  }
+
+  if (!columnNames.has("balance_check_enabled")) {
+    await db.execute("alter table channels add column balance_check_enabled integer not null default 1")
   }
 
   if (!columnNames.has("group_change_alert_enabled")) {

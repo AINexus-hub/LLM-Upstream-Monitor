@@ -48,6 +48,7 @@ export type ChannelFormState = {
   rechargeRate: string
   alertThreshold: string
   balanceAlertEnabled: boolean
+  balanceCheckEnabled: boolean
   groupChangeAlertEnabled: boolean
   groupRateAlertEnabled: boolean
   accessToken: string
