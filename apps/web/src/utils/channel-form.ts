@@ -5,7 +5,7 @@ export const emptyForm: ChannelFormState = {
   setupMode: "simple",
   accountTemplate: "sub2api",
   name: "",
-  type: "newapi",
+  type: "sub2api",
   requestUrl: "",
   officialUrl: "",
   upstreamLoginUrl: "",
