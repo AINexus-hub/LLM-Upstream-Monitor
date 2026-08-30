@@ -1,10 +1,12 @@
 import type { PublicChannel } from "@llm-upstream-monitor/shared"
 import { Activity, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { useMemo, useState } from "react"
 import { EmptyState } from "@/components/common/display"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatAdjustedBalance, formatAmount, formatDateTime, formatTaskRunStatus } from "@/utils/format"
+import { getAdjustedRemaining } from "@/utils/format"
 import { hasUpstreamLogin } from "@/utils/notifications"
 import { statusLabel } from "@/utils/dashboard"
 
@@ -41,6 +43,34 @@ export default function ChannelsPage({
   onSelectChannel,
   onSyncCheck,
 }: ChannelsPageProps) {
+  const [searchTerm, setSearchTerm] = useState("")
+  const [balanceSort, setBalanceSort] = useState<"none" | "asc" | "desc">("none")
+  const visibleChannels = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase()
+    const filtered = channels.filter((channel) => {
+      if (!normalizedSearch) {
+        return true
+      }
+
+      return [channel.name, channel.officialUrl ?? ""].some((value) =>
+        value.toLocaleLowerCase().includes(normalizedSearch),
+      )
+    })
+
+    if (balanceSort === "none") {
+      return filtered
+    }
+
+    return [...filtered].sort((left, right) => {
+      const leftBalance = getAdjustedRemaining(left)
+      const rightBalance = getAdjustedRemaining(right)
+      if (leftBalance === undefined && rightBalance === undefined) return 0
+      if (leftBalance === undefined) return 1
+      if (rightBalance === undefined) return -1
+      return balanceSort === "asc" ? leftBalance - rightBalance : rightBalance - leftBalance
+    })
+  }, [balanceSort, channels, searchTerm])
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -56,6 +86,31 @@ export default function ChannelsPage({
 
       <Card>
         <CardContent className="p-0">
+          {!isLoading && channels.length > 0 && (
+            <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row">
+              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground">
+                搜索供应商名称或官网 / 后台链接
+                <input
+                  className="h-9 border border-input bg-background/75 px-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="输入关键词"
+                />
+              </label>
+              <label className="flex w-full flex-col gap-1 text-xs font-semibold text-muted-foreground sm:w-52">
+                折算余额排序
+                <select
+                  className="h-9 border border-input bg-background/75 px-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+                  value={balanceSort}
+                  onChange={(event) => setBalanceSort(event.target.value as typeof balanceSort)}
+                >
+                  <option value="none">默认顺序</option>
+                  <option value="asc">从低到高</option>
+                  <option value="desc">从高到低</option>
+                </select>
+              </label>
+            </div>
+          )}
           {isLoading ? (
             <div className="px-4 py-10 text-sm text-muted-foreground">正在加载渠道...</div>
           ) : channels.length === 0 ? (
@@ -64,9 +119,11 @@ export default function ChannelsPage({
                 当前没有任何供应商配置。
               </EmptyState>
             </div>
+          ) : visibleChannels.length === 0 ? (
+            <div className="px-4 py-8 text-sm text-muted-foreground">没有匹配的供应商。</div>
           ) : (
             <div className="divide-y divide-border">
-              {channels.map((channel) => {
+              {visibleChannels.map((channel) => {
                 const usesUpstreamLogin = hasUpstreamLogin(channel)
                 const isSyncing = usesUpstreamLogin
                   ? syncingId === channel.id
