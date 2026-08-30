@@ -1,5 +1,5 @@
 import type { PublicChannel } from "@llm-upstream-monitor/shared"
-import { Activity, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { Activity, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { EmptyState } from "@/components/common/display"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ type ChannelsPageProps = {
   onCreate: () => void
   onDiagnose: (channel: PublicChannel) => void
   onDelete: (channel: PublicChannel) => void
+  onDuplicate: (channel: PublicChannel) => void
   onEdit: (channel: PublicChannel) => void
   onSelectChannel: (channelId: string) => void
   onSyncCheck: (channel: PublicChannel) => void
@@ -35,6 +36,7 @@ export default function ChannelsPage({
   onCreate,
   onDiagnose,
   onDelete,
+  onDuplicate,
   onEdit,
   onSelectChannel,
   onSyncCheck,
@@ -205,6 +207,10 @@ export default function ChannelsPage({
                     <Button size="sm" variant="secondary" onClick={() => onEdit(channel)}>
                       <Pencil data-icon="inline-start" aria-hidden="true" />
                       编辑
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onDuplicate(channel)}>
+                      <Copy data-icon="inline-start" aria-hidden="true" />
+                      复制
                     </Button>
                     <Button
                       size="sm"

@@ -477,6 +477,24 @@ function App() {
     setForm(emptyForm)
   }
 
+  function openDuplicateModal(channel: PublicChannel) {
+    setActivePage("channels")
+    setSelectedChannelId(undefined)
+    setForm({
+      ...channelToForm(channel),
+      id: undefined,
+      name: `${channel.name} 副本`,
+      upstreamPassword: "",
+      upstreamAccessToken: "",
+      upstreamRefreshToken: "",
+      accessToken: "",
+      apiKey: "",
+    })
+    setIsModalOpen(true)
+    setMessage(undefined)
+    setError(undefined)
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSaving(true)
@@ -835,6 +853,7 @@ function App() {
             onCreate={openCreateModal}
             onDiagnose={handleDiagnoseChannel}
             onDelete={handleDeleteChannel}
+            onDuplicate={openDuplicateModal}
             onEdit={openEditModal}
             onSelectChannel={setSelectedChannelId}
             onSyncCheck={handleSyncCheck}

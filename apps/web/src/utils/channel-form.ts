@@ -15,7 +15,7 @@ export const emptyForm: ChannelFormState = {
   upstreamRefreshToken: "",
   upstreamTokenExpiresAt: "",
   rechargeRate: "",
-  alertThreshold: "",
+  alertThreshold: "10",
   balanceAlertEnabled: true,
   groupChangeAlertEnabled: true,
   groupRateAlertEnabled: true,
@@ -23,7 +23,7 @@ export const emptyForm: ChannelFormState = {
   userId: "",
   apiKey: "",
   timeoutSeconds: 30,
-  checkIntervalMinutes: 60,
+  checkIntervalMinutes: 5,
 }
 
 export function channelToForm(channel: PublicChannel): ChannelFormState {
