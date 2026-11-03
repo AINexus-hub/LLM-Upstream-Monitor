@@ -114,6 +114,40 @@ describe("channel routes", () => {
     expect(updated.data.upstreamTokenExpiresAt).toBeUndefined()
   })
 
+  it("persists the independent NewAPI account template", async () => {
+    const { app } = await loadApp()
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/channels",
+      headers: authHeaders,
+      payload: {
+        name: "NewAPI Admin",
+        type: "sub2api",
+        accountTemplate: "newapi",
+        requestUrl: "https://newapi.example.com",
+        accessToken: "api-access-token",
+        userId: "1",
+        timeoutSeconds: 30,
+        checkIntervalMinutes: 60,
+      },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).data.accountTemplate).toBe("newapi")
+  })
+
+  it("rejects invalid upstream key payloads before calling upstream", async () => {
+    const { app } = await loadApp()
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/channels/missing/upstream-keys",
+      headers: authHeaders,
+      payload: { groupIds: [] },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).message).toBe("密钥参数无效")
+  })
+
   it("deletes a channel", async () => {
     const { app } = await loadApp()
     const createResponse = await app.inject({

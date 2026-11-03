@@ -325,15 +325,14 @@ function assertSub2ApiChannel(channel: ChannelRow) {
   }
 }
 
-async function readUpstreamBalance(channel: ChannelRow, accessToken: string): Promise<BalanceResult> {
+async function readUpstreamBalance(
+  channel: ChannelRow,
+  accessToken: string,
+): Promise<BalanceResult> {
   const [me, profile, stats] = await Promise.all([
     getAuthorizedOptional<Record<string, unknown>>(channel, "/auth/me", accessToken),
     getAuthorizedOptional<Record<string, unknown>>(channel, "/user/profile", accessToken),
-    getAuthorizedOptional<Record<string, unknown>>(
-      channel,
-      "/usage/dashboard/stats",
-      accessToken,
-    ),
+    getAuthorizedOptional<Record<string, unknown>>(channel, "/usage/dashboard/stats", accessToken),
   ])
 
   if (!me.data && !profile.data) {
@@ -349,6 +348,189 @@ async function readUpstreamBalance(channel: ChannelRow, accessToken: string): Pr
     used: asNumber(asRecord(stats.data).total_actual_cost),
     unit: "USD",
   }
+}
+
+export type Sub2ApiAvailableGroup = {
+  id: string
+  name: string
+  platform?: string
+  rateMultiplier?: number
+}
+
+function extractGroupRates(value: unknown) {
+  const rates = new Map<string, number>()
+  const record = asRecord(value)
+  const entries = Array.isArray(value)
+    ? value.map((item) => {
+        const group = asRecord(item)
+        return [
+          asString(group.id) ?? asString(group.group_id) ?? asString(group.name) ?? "",
+          asNumber(group.rate_multiplier) ?? asNumber(group.rate) ?? asNumber(group.multiplier),
+        ] as const
+      })
+    : Object.entries(record).map(([id, item]) => {
+        const group = asRecord(item)
+        return [
+          id,
+          asNumber(item) ??
+            asNumber(group.rate_multiplier) ??
+            asNumber(group.rate) ??
+            asNumber(group.multiplier),
+        ] as const
+      })
+
+  entries.forEach(([id, rate]) => {
+    if (id && rate !== undefined) rates.set(id, rate)
+  })
+  return rates
+}
+
+function extractAvailableGroups(
+  value: unknown,
+  rates: Map<string, number>,
+): Sub2ApiAvailableGroup[] {
+  const record = asRecord(value)
+  const groups = Array.isArray(value)
+    ? value
+    : ([record.groups, record.items, record.list, record.data].find(Array.isArray) ?? [])
+
+  return groups.flatMap((item) => {
+    const group = asRecord(item)
+    const id =
+      asString(group.id) ??
+      asString(group.group_id) ??
+      asString(group.key) ??
+      (typeof group.id === "number" ? String(group.id) : undefined) ??
+      (typeof group.group_id === "number" ? String(group.group_id) : undefined)
+    const name = asString(group.name) ?? asString(group.group_name) ?? asString(group.label) ?? id
+    const platform =
+      asString(group.platform) ??
+      asString(group.provider) ??
+      asString(group.vendor) ??
+      asString(group.type)
+    const rateMultiplier =
+      asNumber(group.rate_multiplier) ??
+      asNumber(group.rate) ??
+      asNumber(group.multiplier) ??
+      (id ? rates.get(id) : undefined) ??
+      (name ? rates.get(name) : undefined)
+    return id && name ? [{ id, name, platform, rateMultiplier }] : []
+  })
+}
+
+async function withUpstreamSession<T>(
+  channelId: string,
+  action: (channel: ChannelRow, accessToken: string) => Promise<T>,
+) {
+  const channel = await getChannel(channelId)
+  if (!channel) {
+    return null
+  }
+  assertSub2ApiChannel(channel)
+
+  const accessToken = await ensureSession(channel)
+  if (!accessToken) {
+    throw new Error("上游登录未返回 access token")
+  }
+  return action((await getChannel(channel.id)) ?? channel, accessToken)
+}
+
+export async function listSub2ApiGroups(channelId: string) {
+  return withUpstreamSession(channelId, async (channel, accessToken) => {
+    const [data, rates] = await Promise.all([
+      getAuthorized<unknown>(channel, "/groups/available", accessToken),
+      getAuthorizedOptional<unknown>(channel, "/groups/rates", accessToken),
+    ])
+    return extractAvailableGroups(data, extractGroupRates(rates.data))
+  })
+}
+
+export function buildSub2ApiKeyName(group: Sub2ApiAvailableGroup) {
+  if (group.rateMultiplier === undefined) {
+    throw new Error(`无法读取分组“${group.name}”的倍率`)
+  }
+
+  const ratePrefix = String(Math.round(group.rateMultiplier * 100)).padStart(3, "0")
+  return `${ratePrefix}${group.name}`
+}
+
+async function createKeyForGroup(
+  channel: ChannelRow,
+  accessToken: string,
+  group: Sub2ApiAvailableGroup,
+  input: { quota?: number; expiresInDays?: number },
+) {
+  return requestSub2Api<unknown>(channel, "/keys", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      name: buildSub2ApiKeyName(group),
+      group_id: /^\d+$/.test(group.id) ? Number(group.id) : group.id,
+      quota: input.quota ?? 0,
+      ...(input.expiresInDays === undefined ? {} : { expires_in_days: input.expiresInDays }),
+    }),
+  })
+}
+
+export async function createSub2ApiKeys(
+  channelId: string,
+  input: { groupIds: string[]; quota?: number; expiresInDays?: number },
+) {
+  return withUpstreamSession(channelId, async (channel, accessToken) => {
+    const groups = await listSub2ApiGroups(channelId)
+    const results = await Promise.all(
+      input.groupIds.map(async (groupId) => {
+        const group = groups?.find((item) => item.id === groupId)
+        if (!group) {
+          return {
+            groupId,
+            groupName: groupId,
+            name: groupId,
+            success: false,
+            error: "分组已不可用，请重新加载",
+          }
+        }
+        let name: string
+        try {
+          name = buildSub2ApiKeyName(group)
+        } catch (error) {
+          return {
+            groupId,
+            groupName: group.name,
+            name: group.name,
+            success: false,
+            error: error instanceof Error ? error.message : "分组倍率无效",
+          }
+        }
+        try {
+          const data = await createKeyForGroup(channel, accessToken, group, input)
+          const record = asRecord(data)
+          const key = [record.key, record.api_key, record.apiKey, record.token].find(
+            (value): value is string => typeof value === "string",
+          )
+          if (!key) {
+            return {
+              groupId,
+              groupName: group.name,
+              name,
+              success: false,
+              error: "上游响应中没有完整密钥",
+            }
+          }
+          return { groupId, groupName: group.name, name, success: true, key }
+        } catch (error) {
+          return {
+            groupId,
+            groupName: group.name,
+            name,
+            success: false,
+            error: error instanceof Error ? error.message : "创建失败",
+          }
+        }
+      }),
+    )
+    return results
+  })
 }
 
 export async function getSub2ApiUpstreamSnapshot(channelId: string) {

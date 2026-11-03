@@ -16,6 +16,7 @@ export type LocalNotification = NotificationRecord & {
 
 export function hasUpstreamLogin(channel: PublicChannel) {
   return (
+    channel.accountTemplate === "newapi" ||
     channel.hasUpstreamRefreshToken ||
     channel.hasUpstreamAccessToken ||
     channel.hasUpstreamPassword

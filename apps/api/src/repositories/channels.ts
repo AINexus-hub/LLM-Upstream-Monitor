@@ -11,6 +11,7 @@ type DbChannelRow = {
   id: string
   name: string
   type: string
+  account_template?: string
   request_url: string
   official_url: string | null
   upstream_login_url: string | null
@@ -55,6 +56,7 @@ function mapChannel(row: DbChannelRow): ChannelRow {
     id: row.id,
     name: row.name,
     type: row.type === "sub2api" ? "sub2api" : "newapi",
+    accountTemplate: row.account_template === "newapi" ? "newapi" : "sub2api",
     requestUrl: row.request_url,
     officialUrl: row.official_url,
     upstreamLoginUrl: row.upstream_login_url,
@@ -106,6 +108,7 @@ function toPublicChannel(
     id: channel.id,
     name: channel.name,
     type: channel.type,
+    accountTemplate: channel.accountTemplate,
     requestUrl: channel.requestUrl,
     officialUrl: channel.officialUrl ?? undefined,
     upstreamLoginUrl: channel.upstreamLoginUrl ?? undefined,
@@ -174,17 +177,18 @@ export async function createChannel(input: CreateChannelInput): Promise<PublicCh
 
   await db.execute({
     sql: `insert into channels (
-      id, name, type, request_url, official_url,
+      id, name, type, account_template, request_url, official_url,
       upstream_login_url, upstream_username, upstream_password, upstream_access_token,
       upstream_refresh_token, upstream_token_expires_at,
       recharge_rate, alert_threshold, balance_alert_enabled, balance_check_enabled, group_change_alert_enabled,
       group_rate_alert_enabled, access_token, user_id, api_key,
       timeout_seconds, check_interval_minutes, created_at, updated_at
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
       input.name,
       input.type,
+      input.accountTemplate ?? "sub2api",
       input.requestUrl,
       input.officialUrl ?? null,
       input.upstreamLoginUrl ?? null,
@@ -229,6 +233,7 @@ export async function updateChannel(
   const next = {
     name: input.name ?? current.name,
     type: input.type ?? current.type,
+    accountTemplate: input.accountTemplate ?? current.accountTemplate,
     requestUrl: input.requestUrl ?? current.requestUrl,
     officialUrl: input.officialUrl === undefined ? current.officialUrl : input.officialUrl || null,
     upstreamLoginUrl: nextNullableUpstreamValue(
@@ -284,6 +289,7 @@ export async function updateChannel(
     sql: `update channels set
       name = ?,
       type = ?,
+      account_template = ?,
       request_url = ?,
       official_url = ?,
       upstream_login_url = ?,
@@ -310,6 +316,7 @@ export async function updateChannel(
     args: [
       next.name,
       next.type,
+      next.accountTemplate,
       next.requestUrl,
       next.officialUrl,
       next.upstreamLoginUrl,

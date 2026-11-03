@@ -133,11 +133,13 @@ export default function ChannelsPage({
                 const tokenStatus =
                   channel.hasAccessToken || channel.hasApiKey ? "令牌已配" : "令牌缺失"
                 const loginStatus =
-                  channel.hasUpstreamRefreshToken || channel.hasUpstreamAccessToken
-                    ? "登录态已配"
-                    : channel.hasUpstreamPassword
-                      ? "账号已配"
-                      : "未接入账号"
+                  channel.accountTemplate === "newapi"
+                    ? "NewAPI 访问令牌已配"
+                    : channel.hasUpstreamRefreshToken || channel.hasUpstreamAccessToken
+                      ? "登录态已配"
+                      : channel.hasUpstreamPassword
+                        ? "账号已配"
+                        : "未接入账号"
                 const runStatusLabel = usesUpstreamLogin ? "同步" : "检测"
                 const hasRunError = usesUpstreamLogin
                   ? Boolean(channel.upstreamLastSyncError)
@@ -169,7 +171,7 @@ export default function ChannelsPage({
                   <div className="pointer-events-none relative z-10 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="truncate font-semibold">{channel.name}</h3>
-                      <Badge variant="secondary">{channel.type.toUpperCase()}</Badge>
+                      <Badge variant="secondary">{channel.accountTemplate === "newapi" ? "NEWAPI" : channel.type.toUpperCase()}</Badge>
                       <Badge
                         variant={channel.lastCheck?.success === false ? "destructive" : "outline"}
                       >

@@ -14,6 +14,7 @@ async function loadModules() {
   return {
     channels: await import("../repositories/channels.js"),
     adapters: await import("./upstream-provider-adapters.js"),
+    upstreamAccounts: await import("./upstream-accounts.js"),
   }
 }
 
@@ -22,8 +23,8 @@ describe("upstream provider adapters", () => {
     vi.restoreAllMocks()
   })
 
-  it("keeps Sub2API supported and falls back safely for NewAPI account access", async () => {
-    const { adapters, channels } = await loadModules()
+  it("supports Sub2API and validates NewAPI administrator login during sync", async () => {
+    const { adapters, channels, upstreamAccounts } = await loadModules()
     const sub2api = await channels.createChannel({
       name: "Sub2API",
       type: "sub2api",
@@ -37,17 +38,46 @@ describe("upstream provider adapters", () => {
 
     const newapi = await channels.createChannel({
       name: "NewAPI",
-      type: "newapi",
+      type: "sub2api",
+      accountTemplate: "newapi",
       requestUrl: "https://example.test",
-      accessToken: "test-token",
-      userId: "test-user",
-      upstreamAccessToken: "test-upstream-token",
+      accessToken: "newapi-token",
+      userId: "1",
       timeoutSeconds: 1,
       checkIntervalMinutes: 1,
     })
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      if (url.pathname === "/api/user/self") {
+        return Response.json({ success: true, data: { quota: 1_000_000, used_quota: 250_000, group: "default" } })
+      }
+      if (url.pathname === "/api/user/self/groups") return Response.json({ success: true, data: { default: { ratio: 1 } } })
+      if (url.pathname === "/api/pricing") {
+        return Response.json({
+          success: true,
+          vendors: [{ id: 6, name: "DeepSeek" }],
+          data: [{ vendor_id: 6, enable_groups: ["default"] }],
+        })
+      }
+      throw new Error(`unexpected request ${url}`)
+    })
     const record = await adapters.syncUpstreamProvider(newapi.id)
+    expect(record?.success, record?.errorMessage).toBe(true)
+    expect(record).toMatchObject({ remaining: 2, used: 0.5, total: 2.5, unit: "USD" })
 
-    expect(record?.success).toBe(false)
-    expect(record?.errorMessage).toContain("暂不支持 NEWAPI")
+    const snapshot = await upstreamAccounts.refreshUpstreamAccountSnapshot(newapi.id)
+    expect(snapshot?.summary.metrics.balance).toBe(2)
+    expect(snapshot?.summary.groups).toContainEqual({
+      id: "default",
+      name: "default",
+      platform: "DeepSeek",
+      platforms: ["DeepSeek"],
+      rateMultiplier: 1,
+    })
+
+    fetchMock.mockResolvedValue(Response.json({ success: false, message: "invalid token" }, { status: 401 }))
+    const failed = await adapters.syncUpstreamProvider(newapi.id)
+    expect(failed?.success).toBe(false)
+    expect(failed?.errorMessage).toContain("invalid token")
   })
 })

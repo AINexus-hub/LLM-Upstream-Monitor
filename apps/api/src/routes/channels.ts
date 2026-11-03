@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply } from "fastify"
 import {
   createChannel,
   deleteChannel,
+  getChannel,
   getPublicChannel,
   listChannels,
   listChecks,
@@ -10,7 +11,9 @@ import {
 } from "../repositories/channels.js"
 import { checkChannelBalance } from "../services/balance-checker.js"
 import {
+  createUpstreamApiKeys,
   diagnoseUpstreamProvider,
+  listUpstreamGroups,
   syncUpstreamProvider,
 } from "../services/upstream-provider-adapters.js"
 import {
@@ -34,6 +37,7 @@ import {
   refreshUpstreamAccountSnapshot,
 } from "../services/upstream-accounts.js"
 import { runManualTask, TaskAlreadyRunningError } from "../scheduler.js"
+import { readNewApiDirectory } from "../services/newapi-directory.js"
 
 const channelTypeSchema = z.enum(["newapi", "sub2api"])
 const optionalDateTimeSchema = z
@@ -47,6 +51,7 @@ const optionalDateTimeSchema = z
 const channelSchema = z.object({
   name: z.string().trim().min(1),
   type: channelTypeSchema,
+  accountTemplate: z.enum(["sub2api", "newapi"]).optional(),
   requestUrl: z.string().trim().url(),
   officialUrl: z.string().trim().url().nullish(),
   upstreamLoginUrl: z.string().trim().url().nullish(),
@@ -79,12 +84,19 @@ const createChannelSchema = channelSchema.superRefine((value, ctx) => {
     }
   }
 
-  if (value.type === "sub2api" && !value.apiKey) {
+  if (value.accountTemplate === "newapi" && (!value.accessToken || !value.userId)) {
+    ctx.addIssue({ code: "custom", path: ["accessToken"], message: "NewAPI 批量创建需要访问令牌和用户 ID" })
+  }
+
+  if (value.type === "sub2api" && value.accountTemplate !== "newapi" && !value.apiKey) {
     ctx.addIssue({ code: "custom", path: ["apiKey"], message: "Sub2API 需要 API Key" })
   }
 })
 
 const updateChannelSchema = channelSchema.partial().superRefine((value, ctx) => {
+  if (value.accountTemplate === "newapi" && value.upstreamUsername === "") {
+    ctx.addIssue({ code: "custom", path: ["upstreamUsername"], message: "NewAPI 管理员用户名不能为空" })
+  }
   if (value.type === "newapi") {
     if (value.accessToken === "") {
       ctx.addIssue({ code: "custom", path: ["accessToken"], message: "访问令牌为空时会保持原值" })
@@ -162,6 +174,12 @@ const notificationTestSchema = z.object({
 const taskRunsQuerySchema = z.object({
   channelId: z.string().trim().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
+})
+
+const createUpstreamKeysSchema = z.object({
+  groupIds: z.array(z.string().trim().min(1)).min(1).max(100),
+  quota: z.coerce.number().nonnegative().optional(),
+  expiresInDays: z.coerce.number().int().positive().optional(),
 })
 
 function sendTaskError(reply: FastifyReply, error: unknown, fallbackMessage: string) {
@@ -243,14 +261,17 @@ export async function registerChannelRoutes(app: FastifyInstance) {
     return { data: { ok: true } }
   })
 
-  app.patch<{ Params: { id: string } }>("/api/notifications/:id/archive", async (request, reply) => {
-    const didUpdate = await archiveNotification(request.params.id)
-    if (!didUpdate) {
-      return reply.code(404).send({ message: "通知不存在" })
-    }
+  app.patch<{ Params: { id: string } }>(
+    "/api/notifications/:id/archive",
+    async (request, reply) => {
+      const didUpdate = await archiveNotification(request.params.id)
+      if (!didUpdate) {
+        return reply.code(404).send({ message: "通知不存在" })
+      }
 
-    return { data: { ok: true } }
-  })
+      return { data: { ok: true } }
+    },
+  )
 
   app.delete<{ Params: { id: string } }>("/api/notifications/:id", async (request, reply) => {
     const didUpdate = await deleteNotification(request.params.id)
@@ -334,20 +355,75 @@ export async function registerChannelRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/sync-upstream", async (request, reply) => {
-    try {
-      const record = await runManualTask(request.params.id, "upstream_sync", () =>
-        syncUpstreamProvider(request.params.id),
-      )
-      if (!record) {
-        return reply.code(404).send({ message: "渠道不存在" })
+  app.get<{ Params: { id: string } }>(
+    "/api/channels/:id/newapi-directory",
+    async (request, reply) => {
+      const channel = await getChannel(request.params.id)
+      if (!channel) return reply.code(404).send({ message: "渠道不存在" })
+      try {
+        return { data: await readNewApiDirectory(channel) }
+      } catch (error) {
+        return reply.code(400).send({ message: error instanceof Error ? error.message : "NewAPI 目录读取失败" })
+      }
+    },
+  )
+
+  app.get<{ Params: { id: string } }>(
+    "/api/channels/:id/upstream-groups",
+    async (request, reply) => {
+      try {
+        const groups = await listUpstreamGroups(request.params.id)
+        if (!groups) {
+          return reply.code(404).send({ message: "渠道不存在" })
+        }
+        return { data: groups }
+      } catch (error) {
+        return reply.code(400).send({
+          message: error instanceof Error ? error.message : "上游分组读取失败",
+        })
+      }
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    "/api/channels/:id/upstream-keys",
+    async (request, reply) => {
+      const parsed = createUpstreamKeysSchema.safeParse(request.body)
+      if (!parsed.success) {
+        return reply.code(400).send({ message: "密钥参数无效", issues: parsed.error.issues })
       }
 
-      return { data: record }
-    } catch (error) {
-      return sendTaskError(reply, error, "上游同步失败")
-    }
-  })
+      try {
+        const results = await createUpstreamApiKeys(request.params.id, parsed.data)
+        if (!results) {
+          return reply.code(404).send({ message: "渠道不存在" })
+        }
+        return { data: results }
+      } catch (error) {
+        return reply.code(400).send({
+          message: error instanceof Error ? error.message : "上游密钥创建失败",
+        })
+      }
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    "/api/channels/:id/sync-upstream",
+    async (request, reply) => {
+      try {
+        const record = await runManualTask(request.params.id, "upstream_sync", () =>
+          syncUpstreamProvider(request.params.id),
+        )
+        if (!record) {
+          return reply.code(404).send({ message: "渠道不存在" })
+        }
+
+        return { data: record }
+      } catch (error) {
+        return sendTaskError(reply, error, "上游同步失败")
+      }
+    },
+  )
 
   app.get<{ Params: { id: string } }>(
     "/api/channels/:id/upstream-account",

@@ -4,7 +4,7 @@ export type Page = "monitor" | "upstream" | "channels" | "notifications" | "noti
 export type TimeRange = "24h" | "1d" | "3d" | "7d"
 export type ChecksByChannel = Record<string, BalanceCheckRecord[]>
 export type SetupMode = "simple" | "account"
-export type AccountTemplate = "sub2api"
+export type AccountTemplate = "sub2api" | "newapi"
 export type OptionalRead<T = unknown> = {
   data: T | null
   error: string | null

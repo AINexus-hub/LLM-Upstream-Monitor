@@ -1,9 +1,10 @@
-import type { BalanceCheckRecord, ChannelType, TaskRunRecord } from "@llm-upstream-monitor/shared"
+import type { AccountTemplate, BalanceCheckRecord, ChannelType, TaskRunRecord } from "@llm-upstream-monitor/shared"
 
 export type ChannelRow = {
   id: string
   name: string
   type: ChannelType
+  accountTemplate: AccountTemplate
   requestUrl: string
   officialUrl: string | null
   upstreamLoginUrl: string | null
@@ -33,6 +34,7 @@ export type PublicChannel = {
   id: string
   name: string
   type: ChannelType
+  accountTemplate: AccountTemplate
   requestUrl: string
   officialUrl?: string | null
   upstreamLoginUrl?: string | null
@@ -63,6 +65,7 @@ export type PublicChannel = {
 export type CreateChannelInput = {
   name: string
   type: ChannelType
+  accountTemplate?: AccountTemplate
   requestUrl: string
   officialUrl?: string | null
   upstreamLoginUrl?: string | null

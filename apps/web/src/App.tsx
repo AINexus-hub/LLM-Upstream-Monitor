@@ -7,12 +7,23 @@ import type {
   PublicNotificationSettings,
   UpstreamSnapshotRecord,
 } from "@llm-upstream-monitor/shared"
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { ChannelModal } from "@/components/channel/ChannelModal"
 import { AppHeader } from "@/components/layout/AppHeader"
-import type { ChannelFormState, ChecksByChannel, Page, Sub2ApiUpstreamSnapshot, TimeRange } from "@/types/app"
-import { channelToForm, emptyForm, formToPayload, summarizeSub2ApiSnapshot } from "@/utils/channel-form"
+import type {
+  ChannelFormState,
+  ChecksByChannel,
+  Page,
+  Sub2ApiUpstreamSnapshot,
+  TimeRange,
+} from "@/types/app"
+import {
+  channelToForm,
+  emptyForm,
+  formToPayload,
+  summarizeSub2ApiSnapshot,
+} from "@/utils/channel-form"
 import { buildInsights } from "@/utils/dashboard"
 import { getAdjustedRemaining } from "@/utils/format"
 import { isThemeName, type ThemeName } from "@/utils/theme"
@@ -62,7 +73,9 @@ function readStoredStringArray(key: string) {
   try {
     const value = localStorage.getItem(key)
     const parsed = value ? (JSON.parse(value) as unknown) : []
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : []
   } catch {
     return []
   }
@@ -103,9 +116,8 @@ function App() {
     const storedTheme = localStorage.getItem(themeStorageKey)
     return isThemeName(storedTheme) ? storedTheme : "aurora"
   })
-  const [localReadNotificationIds, setLocalReadNotificationIds] = useState<string[]>(
-    readLocalNotificationIds,
-  )
+  const [localReadNotificationIds, setLocalReadNotificationIds] =
+    useState<string[]>(readLocalNotificationIds)
   const [localArchivedNotificationIds, setLocalArchivedNotificationIds] = useState<string[]>(() =>
     readStoredStringArray(localNotificationArchivedStorageKey),
   )
@@ -148,28 +160,34 @@ function App() {
   const checks = selectedChannelId ? (checksByChannel[selectedChannelId] ?? []) : []
 
   const totalCheckCount = useMemo(
-    () => Object.values(checksByChannel).reduce((sum, channelChecks) => sum + channelChecks.length, 0),
+    () =>
+      Object.values(checksByChannel).reduce((sum, channelChecks) => sum + channelChecks.length, 0),
     [checksByChannel],
   )
 
   const notifications = useMemo(() => buildNotifications(channels), [channels])
   const mergedNotifications = useMemo(
     () =>
-      mergeNotifications(stationNotifications, notifications).map((notification) =>
-        !notification.readAt && localReadNotificationIds.includes(notification.id)
-          ? { ...notification, readAt: "local" }
-          : notification,
-      ).filter((notification) => {
-        if (localDeletedNotificationIds.includes(notification.id)) {
-          return false
-        }
+      mergeNotifications(stationNotifications, notifications)
+        .map((notification) =>
+          !notification.readAt && localReadNotificationIds.includes(notification.id)
+            ? { ...notification, readAt: "local" }
+            : notification,
+        )
+        .filter((notification) => {
+          if (localDeletedNotificationIds.includes(notification.id)) {
+            return false
+          }
 
-        if (!includeArchivedNotifications && localArchivedNotificationIds.includes(notification.id)) {
-          return false
-        }
+          if (
+            !includeArchivedNotifications &&
+            localArchivedNotificationIds.includes(notification.id)
+          ) {
+            return false
+          }
 
-        return includeArchivedNotifications || !notification.archivedAt
-      }),
+          return includeArchivedNotifications || !notification.archivedAt
+        }),
     [
       stationNotifications,
       notifications,
@@ -180,10 +198,14 @@ function App() {
     ],
   )
   const notificationSummary = useMemo(
-    () => mergedNotifications.filter((notification) => notification.severity !== "info").slice(0, 3),
+    () =>
+      mergedNotifications.filter((notification) => notification.severity !== "info").slice(0, 3),
     [mergedNotifications],
   )
-  const insights = useMemo(() => buildInsights(channels, checksByChannel), [channels, checksByChannel])
+  const insights = useMemo(
+    () => buildInsights(channels, checksByChannel),
+    [channels, checksByChannel],
+  )
 
   const totalRemaining = useMemo(
     () =>
@@ -532,7 +554,9 @@ function App() {
   }
 
   async function handleDeleteChannel(channel: PublicChannel) {
-    if (!window.confirm(`确定删除供应商“${channel.name}”吗？相关检测记录和上游快照也会一起删除。`)) {
+    if (
+      !window.confirm(`确定删除供应商“${channel.name}”吗？相关检测记录和上游快照也会一起删除。`)
+    ) {
       return
     }
 
@@ -664,6 +688,18 @@ function App() {
     setMessage(undefined)
 
     try {
+      if (channels.find((channel) => channel.id === channelId)?.accountTemplate === "newapi") {
+        const record = await request<BalanceCheckRecord>(
+          `/api/channels/${channelId}/sync-upstream/diagnose`,
+          { method: "POST" },
+          authToken,
+        )
+        if (record.success) setMessage("诊断完成：NewAPI 余额接口可用")
+        else setError(record.errorMessage || "NewAPI 诊断失败")
+        await loadChannels(channelId)
+        return
+      }
+
       const snapshot = await request<Sub2ApiUpstreamSnapshot>(
         `/api/channels/${channelId}/sync-upstream/diagnose`,
         {
@@ -680,6 +716,35 @@ function App() {
     }
   }
 
+  const handleLoadUpstreamGroups = useCallback(
+    (channelId: string) =>
+      request<Array<{ id: string; name: string; platform?: string; platforms?: string[]; rateMultiplier?: number }>>(
+        `/api/channels/${channelId}/upstream-groups`,
+        undefined,
+        authToken,
+      ),
+    [authToken],
+  )
+
+  const handleCreateUpstreamKeys = useCallback(
+    (channelId: string, payload: { groupIds: string[]; quota?: number; expiresInDays?: number }) =>
+      request<
+        Array<{
+          groupId: string
+          groupName: string
+          name: string
+          success: boolean
+          key?: string
+          error?: string
+        }>
+      >(
+        `/api/channels/${channelId}/upstream-keys`,
+        { method: "POST", body: JSON.stringify(payload) },
+        authToken,
+      ),
+    [authToken],
+  )
+
   async function handleRefreshUpstreamSnapshot(channelId: string) {
     setRefreshingSnapshotId(channelId)
     setError(undefined)
@@ -694,7 +759,11 @@ function App() {
         authToken,
       )
       setMessage("账号看板快照已刷新")
-      await Promise.all([loadChannels(channelId), loadUpstreamSnapshots(), loadStationNotifications()])
+      await Promise.all([
+        loadChannels(channelId),
+        loadUpstreamSnapshots(),
+        loadStationNotifications(),
+      ])
       setSelectedUpstreamChannelId(channelId)
     } catch (caught) {
       handleRequestError(caught, "账号看板刷新失败")
@@ -807,11 +876,19 @@ function App() {
             selectedChannelId={selectedUpstreamChannelId}
             snapshots={upstreamSnapshots}
             onCreate={openCreateModal}
+            onCreateKeys={handleCreateUpstreamKeys}
+            onLoadGroups={handleLoadUpstreamGroups}
             onRefresh={handleRefreshUpstreamSnapshot}
             onSelectChannel={setSelectedUpstreamChannelId}
           />
         ) : activePage === "notifications" ? (
-          <Suspense fallback={<div className="border border-border bg-card p-4 text-sm text-muted-foreground">正在加载通知中心...</div>}>
+          <Suspense
+            fallback={
+              <div className="border border-border bg-card p-4 text-sm text-muted-foreground">
+                正在加载通知中心...
+              </div>
+            }
+          >
             <NotificationCenterPage
               channels={channels}
               includeArchived={includeArchivedNotifications}
@@ -830,7 +907,13 @@ function App() {
             />
           </Suspense>
         ) : activePage === "notification-settings" ? (
-          <Suspense fallback={<div className="border border-border bg-card p-4 text-sm text-muted-foreground">正在加载通知设置...</div>}>
+          <Suspense
+            fallback={
+              <div className="border border-border bg-card p-4 text-sm text-muted-foreground">
+                正在加载通知设置...
+              </div>
+            }
+          >
             <NotificationSettingsPage
               isLoading={isNotificationSettingsLoading}
               isSaving={isNotificationSettingsSaving}

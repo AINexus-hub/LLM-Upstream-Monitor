@@ -1,6 +1,7 @@
 import type {
   PublicChannel,
   UpstreamApiKeySummary,
+  UpstreamProvider,
   UpstreamGroupSummary,
   UpstreamRecentUsageItem,
   UpstreamSnapshotSummary,
@@ -15,6 +16,7 @@ import {
 } from "../repositories/upstream-snapshots.js"
 import {
   getUpstreamProviderAdapter,
+  type NewApiUpstreamSnapshot,
   type UpstreamRawSnapshot,
   type Sub2ApiUpstreamSnapshot,
 } from "./upstream-provider-adapters.js"
@@ -120,8 +122,7 @@ function buildRateMap(value: unknown) {
   Object.entries(record).forEach(([key, rawValue]) => {
     const nested = asRecord(rawValue)
     const rate =
-      asNumber(rawValue) ??
-      firstNumber(nested, ["rate_multiplier", "rate", "multiplier", "倍率"])
+      asNumber(rawValue) ?? firstNumber(nested, ["rate_multiplier", "rate", "multiplier", "倍率"])
     if (rate !== undefined) {
       map.set(key, rate)
     }
@@ -181,6 +182,7 @@ function extractApiKeys(snapshot: Sub2ApiUpstreamSnapshot): UpstreamApiKeySummar
       keyPreview: maskSecret(key),
       groupId: firstString(record, ["group_id", "groupId"]),
       groupName: firstString(record, ["group_name", "group", "groupName"]),
+      platform: firstString(record, ["platform", "provider", "vendor"]),
       status: firstString(record, ["status", "state"]),
       quota: firstNumber(record, ["quota", "limit", "total_quota"]),
       used: firstNumber(record, ["used", "used_quota", "usage"]),
@@ -193,7 +195,12 @@ function extractUsageItems(value: unknown): UpstreamUsageItem[] {
   return findArray(value, ["items", "models", "platforms", "records"]).map((item) => {
     const record = asRecord(item)
     const actualCost = firstNumber(record, ["actual_cost", "total_actual_cost", "actualCost"])
-    const standardCost = firstNumber(record, ["cost", "total_cost", "standard_cost", "standardCost"])
+    const standardCost = firstNumber(record, [
+      "cost",
+      "total_cost",
+      "standard_cost",
+      "standardCost",
+    ])
     return {
       name: firstString(record, ["name", "model", "platform", "type"]) ?? "unknown",
       requests: firstNumber(record, ["requests", "request_count", "count"]),
@@ -206,39 +213,44 @@ function extractUsageItems(value: unknown): UpstreamUsageItem[] {
 }
 
 function extractRecentUsage(value: unknown): UpstreamRecentUsageItem[] {
-  return findArray(value, ["items", "records", "list"]).slice(0, 20).map((item) => {
-    const record = asRecord(item)
-    const group = asRecord(record.group)
-    const apiKey = asRecord(record.api_key)
-    const actualCost = firstNumber(record, ["actual_cost", "actualCost"])
-    const standardCost = firstNumber(record, ["total_cost", "cost", "standard_cost", "standardCost"])
-    const tokens =
-      firstNumber(record, ["tokens", "total_tokens", "token_count"]) ??
-      [
-        "input_tokens",
-        "output_tokens",
-        "cache_creation_tokens",
-        "cache_read_tokens",
-        "image_output_tokens",
-      ].reduce((sum, key) => sum + (asNumber(record[key]) ?? 0), 0)
+  return findArray(value, ["items", "records", "list"])
+    .slice(0, 20)
+    .map((item) => {
+      const record = asRecord(item)
+      const group = asRecord(record.group)
+      const apiKey = asRecord(record.api_key)
+      const actualCost = firstNumber(record, ["actual_cost", "actualCost"])
+      const standardCost = firstNumber(record, [
+        "total_cost",
+        "cost",
+        "standard_cost",
+        "standardCost",
+      ])
+      const tokens =
+        firstNumber(record, ["tokens", "total_tokens", "token_count"]) ??
+        [
+          "input_tokens",
+          "output_tokens",
+          "cache_creation_tokens",
+          "cache_read_tokens",
+          "image_output_tokens",
+        ].reduce((sum, key) => sum + (asNumber(record[key]) ?? 0), 0)
 
-    return {
-      id: firstString(record, ["id", "request_id"]),
-      model: firstString(record, ["model", "model_name"]),
-      platform: firstString(record, ["platform", "provider"]) ?? firstString(group, ["platform"]),
-      apiKeyName:
-        firstString(record, ["api_key_name", "key_name", "apiKeyName"]) ??
-        firstString(apiKey, ["name"]),
-      groupName:
-        firstString(record, ["group_name", "groupName"]) ??
-        firstString(group, ["name"]),
-      tokens,
-      cost: actualCost ?? standardCost,
-      actualCost,
-      standardCost,
-      createdAt: firstString(record, ["created_at", "createdAt", "time"]),
-    }
-  })
+      return {
+        id: firstString(record, ["id", "request_id"]),
+        model: firstString(record, ["model", "model_name"]),
+        platform: firstString(record, ["platform", "provider"]) ?? firstString(group, ["platform"]),
+        apiKeyName:
+          firstString(record, ["api_key_name", "key_name", "apiKeyName"]) ??
+          firstString(apiKey, ["name"]),
+        groupName: firstString(record, ["group_name", "groupName"]) ?? firstString(group, ["name"]),
+        tokens,
+        cost: actualCost ?? standardCost,
+        actualCost,
+        standardCost,
+        createdAt: firstString(record, ["created_at", "createdAt", "time"]),
+      }
+    })
 }
 
 function collectErrors(blocks: Array<{ module: string; read: ReadBlock }>) {
@@ -258,7 +270,8 @@ function buildSub2ApiSummary(snapshot: Sub2ApiUpstreamSnapshot): UpstreamSnapsho
     fetchedAt: snapshot.fetchedAt,
     range: snapshot.range,
     metrics: {
-      balance: firstNumber(profile, ["balance", "quota", "remaining", "available_balance"]) ??
+      balance:
+        firstNumber(profile, ["balance", "quota", "remaining", "available_balance"]) ??
         firstNumber(me, ["balance", "quota", "remaining", "available_balance"]),
       apiKeyCount:
         firstNumber(stats, ["api_key_count", "apiKeyCount", "key_count"]) || apiKeys.length,
@@ -278,7 +291,10 @@ function buildSub2ApiSummary(snapshot: Sub2ApiUpstreamSnapshot): UpstreamSnapsho
     modelUsage: extractUsageItems(snapshot.dashboard.models.data),
     recentUsage: extractRecentUsage(snapshot.dashboard.recentUsage.data),
     errors: collectErrors([
-      { module: "账号", read: snapshot.account.me.data ? snapshot.account.me : snapshot.account.profile },
+      {
+        module: "账号",
+        read: snapshot.account.me.data ? snapshot.account.me : snapshot.account.profile,
+      },
       { module: "统计", read: snapshot.dashboard.stats },
       { module: "趋势", read: snapshot.dashboard.trend },
       { module: "模型分布", read: snapshot.dashboard.models },
@@ -292,12 +308,39 @@ function buildSub2ApiSummary(snapshot: Sub2ApiUpstreamSnapshot): UpstreamSnapsho
   }
 }
 
-function buildUpstreamSummary(provider: PublicChannel["type"], raw: unknown) {
-  if (provider === "sub2api") {
-    return buildSub2ApiSummary(raw as Sub2ApiUpstreamSnapshot)
+function buildNewApiSummary(snapshot: NewApiUpstreamSnapshot): UpstreamSnapshotSummary {
+  const quota = asNumber(snapshot.profile.quota)
+  const usedQuota = asNumber(snapshot.profile.used_quota)
+  const group = asString(snapshot.profile.group)
+  return {
+    provider: "newapi",
+    fetchedAt: snapshot.fetchedAt,
+    metrics: {
+      balance: quota === undefined ? undefined : quota / 500000,
+      apiKeyCount: undefined,
+    },
+    groups: snapshot.groups.map((item) => ({
+      id: item.id,
+      name: item.name,
+      platform: item.platform,
+      platforms: item.platforms,
+      rateMultiplier: item.rateMultiplier,
+    })),
+    apiKeys: [],
+    platformUsage: [],
+    modelUsage: [],
+    recentUsage: [],
+    errors: quota === undefined || usedQuota === undefined
+      ? [{ module: "账号", message: "NewAPI 用户资料缺少余额字段" }]
+      : group ? [] : [{ module: "账号", message: "NewAPI 用户资料缺少当前分组" }],
   }
+}
 
-  throw new Error(`暂不支持 ${provider.toUpperCase()} 账号接入快照解析`)
+function buildUpstreamSummary(provider: UpstreamProvider, raw: unknown) {
+  if (provider === "newapi") {
+    return buildNewApiSummary(raw as NewApiUpstreamSnapshot)
+  }
+  return buildSub2ApiSummary(raw as Sub2ApiUpstreamSnapshot)
 }
 
 async function notifyGroupChanges(

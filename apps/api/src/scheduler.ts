@@ -178,7 +178,8 @@ export function startBalanceScheduler() {
     const result = await db.execute({
       sql: `select c.id,
           case
-            when c.upstream_password is not null
+            when c.account_template = 'newapi'
+              or c.upstream_password is not null
               or c.upstream_access_token is not null
               or c.upstream_refresh_token is not null
             then 1

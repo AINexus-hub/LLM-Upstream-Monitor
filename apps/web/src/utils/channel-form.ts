@@ -31,10 +31,10 @@ export function channelToForm(channel: PublicChannel): ChannelFormState {
   return {
     id: channel.id,
     setupMode:
-      channel.hasUpstreamAccessToken || channel.hasUpstreamRefreshToken || channel.hasUpstreamPassword
+      channel.accountTemplate === "newapi" || channel.hasUpstreamAccessToken || channel.hasUpstreamRefreshToken || channel.hasUpstreamPassword
         ? "account"
         : "simple",
-    accountTemplate: "sub2api",
+    accountTemplate: channel.accountTemplate ?? "sub2api",
     name: channel.name,
     type: channel.type,
     requestUrl: channel.requestUrl,
@@ -109,6 +109,7 @@ export function formToPayload(form: ChannelFormState): ChannelPayload {
   const payload: ChannelPayload = {
     name: form.name.trim(),
     type: form.type,
+    accountTemplate: form.accountTemplate,
     requestUrl: form.requestUrl.trim(),
     timeoutSeconds: form.timeoutSeconds,
     checkIntervalMinutes: form.checkIntervalMinutes,
@@ -154,7 +155,7 @@ export function formToPayload(form: ChannelFormState): ChannelPayload {
   payload.groupChangeAlertEnabled = form.groupChangeAlertEnabled
   payload.groupRateAlertEnabled = form.groupRateAlertEnabled
 
-  if (form.type === "newapi") {
+  if (form.type === "newapi" || form.accountTemplate === "newapi") {
     payload.accessToken = form.accessToken.trim() || undefined
     payload.userId = form.userId.trim()
   }

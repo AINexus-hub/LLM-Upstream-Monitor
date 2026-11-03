@@ -1,7 +1,10 @@
 export type ChannelType = "newapi" | "sub2api"
 
+export type AccountTemplate = "sub2api" | "newapi"
+
 export type ChannelConfig = {
   id: string
+  accountTemplate?: AccountTemplate
   name: string
   type: ChannelType
   requestUrl: string
@@ -74,6 +77,7 @@ export type PublicChannel = ChannelConfig & {
 export type ChannelPayload = {
   name: string
   type: ChannelType
+  accountTemplate?: AccountTemplate
   requestUrl: string
   officialUrl?: string | null
   upstreamLoginUrl?: string | null
@@ -116,6 +120,7 @@ export type UpstreamGroupSummary = {
   id: string
   name: string
   platform?: string
+  platforms?: string[]
   subscriptionType?: string
   rateMultiplier?: number
 }
@@ -126,6 +131,7 @@ export type UpstreamApiKeySummary = {
   keyPreview?: string
   groupId?: string
   groupName?: string
+  platform?: string
   status?: string
   quota?: number
   used?: number

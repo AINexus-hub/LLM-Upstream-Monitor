@@ -30,6 +30,7 @@ export async function initDatabase() {
         id text primary key,
         name text not null,
         type text not null check (type in ('newapi', 'sub2api')),
+        account_template text not null default 'sub2api',
         request_url text not null,
         official_url text,
         upstream_login_url text,
@@ -185,14 +186,26 @@ async function migrateSensitiveValues() {
     })
   }
 
-  const snapshots = await db.execute("select id, raw_json from upstream_snapshots")
-  for (const row of snapshots.rows) {
-    const raw = String(row.raw_json ?? "")
-    if (raw && !isEncryptedSecret(raw)) {
-      await db.execute({
-        sql: "update upstream_snapshots set raw_json = ? where id = ?",
-        args: [encryptSecret(raw, config.ENCRYPTION_KEY) ?? null, String(row.id)],
-      })
+  let lastSnapshotRowId = 0
+  while (true) {
+    const snapshots = await db.execute({
+      sql: `select rowid as row_id, id, raw_json from upstream_snapshots
+        where rowid > ? and raw_json is not null and raw_json not like 'enc:v1:%'
+        order by rowid limit 10`,
+      args: [lastSnapshotRowId],
+    })
+    if (snapshots.rows.length === 0) break
+
+    for (const row of snapshots.rows) {
+      const rowId = Number(row.row_id)
+      lastSnapshotRowId = rowId
+      const raw = String(row.raw_json ?? "")
+      if (raw) {
+        await db.execute({
+          sql: "update upstream_snapshots set raw_json = ? where id = ?",
+          args: [encryptSecret(raw, config.ENCRYPTION_KEY) ?? null, String(row.id)],
+        })
+      }
     }
   }
 }
@@ -205,6 +218,10 @@ async function ensureChannelMetadataColumns() {
       return column.name
     }),
   )
+
+  if (!columnNames.has("account_template")) {
+    await db.execute("alter table channels add column account_template text not null default 'sub2api'")
+  }
 
   if (!columnNames.has("recharge_rate")) {
     await db.execute("alter table channels add column recharge_rate real not null default 1")

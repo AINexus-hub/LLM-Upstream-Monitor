@@ -52,6 +52,7 @@ function asString(value: unknown) {
 
 function hasUpstreamLogin(channel: ChannelRow) {
   return Boolean(
+    channel.accountTemplate === "newapi" ||
     channel.upstreamPassword || channel.upstreamAccessToken || channel.upstreamRefreshToken,
   )
 }
@@ -128,7 +129,9 @@ export async function checkChannelBalance(channelId: string) {
 
   try {
     const result =
-      channel.type === "newapi" ? await checkNewApi(channel) : await checkSub2Api(channel)
+      channel.accountTemplate === "newapi" || channel.type === "newapi"
+        ? await checkNewApi(channel)
+        : await checkSub2Api(channel)
 
     return saveCheck(channel.id, {
       success: result.isValid,

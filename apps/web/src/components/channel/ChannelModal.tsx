@@ -192,76 +192,103 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
             <div className="grid gap-4 border border-border bg-background/35 p-4">
               <SectionIntro
                 title="账号接入模板"
-                description="这里用于配置供应商后台登录信息；当前模板是 Sub2API，后续可以继续加其他供应商后台模板。"
+                description="配置 Sub2API 后台登录或 NewAPI 访问令牌，用于读取分组和批量创建密钥。"
               />
               <label className="flex flex-col gap-2 text-sm font-medium">
                 账号模板
                 <select
                   className="h-10 border border-input bg-background/75 px-3 text-sm outline-none focus:border-primary"
                   value={form.accountTemplate}
-                  onChange={() =>
-                    setForm({ ...form, accountTemplate: "sub2api", type: "sub2api" })
-                  }
+                  onChange={(event) => {
+                    const accountTemplate = event.target.value as ChannelFormState["accountTemplate"]
+                    setForm({ ...form, accountTemplate, type: "sub2api" })
+                  }}
                 >
                   <option value="sub2api">Sub2API 后台账号</option>
+                  <option value="newapi">NewAPI 批量密钥</option>
                 </select>
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
+                {form.accountTemplate === "sub2api" && (
+                  <TextInput
+                    label={form.id ? "Sub2API API Key，留空则保持原值" : "Sub2API API Key"}
+                    value={form.apiKey}
+                    onChange={(apiKey) => setForm({ ...form, apiKey, type: "sub2api" })}
+                    type="password"
+                    required={!form.id}
+                  />
+                )}
                 <TextInput
-                  label={form.id ? "Sub2API API Key，留空则保持原值" : "Sub2API API Key"}
-                  value={form.apiKey}
-                  onChange={(apiKey) => setForm({ ...form, apiKey, type: "sub2api" })}
-                  type="password"
-                  required={!form.id}
-                />
-                <TextInput
-                  label="上游登录页"
+                  label={form.accountTemplate === "newapi" ? "NewAPI 基础地址" : "上游登录页"}
                   value={form.upstreamLoginUrl}
                   onChange={(upstreamLoginUrl) =>
                     setForm({ ...form, upstreamLoginUrl, type: "sub2api" })
                   }
-                  placeholder="https://example.com/login"
+                  placeholder="https://example.com"
                 />
-                <TextInput
-                  label="上游账号邮箱"
-                  value={form.upstreamUsername}
-                  onChange={(upstreamUsername) =>
-                    setForm({ ...form, upstreamUsername, type: "sub2api" })
-                  }
-                  placeholder="name@example.com"
-                />
-                <TextInput
+                {form.accountTemplate === "newapi" ? (
+                  <>
+                    <TextInput
+                      label={form.id ? "NewAPI 访问令牌，留空则保持原值" : "NewAPI 访问令牌"}
+                      value={form.accessToken}
+                      onChange={(accessToken) => setForm({ ...form, accessToken, type: "sub2api" })}
+                      type="password"
+                      required={!form.id}
+                    />
+                    <TextInput
+                      label="NewAPI 用户 ID"
+                      value={form.userId}
+                      onChange={(userId) => setForm({ ...form, userId, type: "sub2api" })}
+                      required
+                    />
+                  </>
+                ) : (
+                  <TextInput
+                    label="上游账号邮箱"
+                    value={form.upstreamUsername}
+                    onChange={(upstreamUsername) => setForm({ ...form, upstreamUsername, type: "sub2api" })}
+                    placeholder="name@example.com"
+                  />
+                )}
+                {form.accountTemplate === "sub2api" && <TextInput
                   label={form.id ? "上游密码，留空则保持原值" : "上游密码"}
                   value={form.upstreamPassword}
-                  onChange={(upstreamPassword) =>
-                    setForm({ ...form, upstreamPassword, type: "sub2api" })
-                  }
+                  onChange={(upstreamPassword) => setForm({ ...form, upstreamPassword, type: "sub2api" })}
                   type="password"
-                />
-                <TextInput
+                />}
+                {form.accountTemplate === "sub2api" && <TextInput
                   label={form.id ? "Access token，留空则保持原值" : "Access token"}
                   value={form.upstreamAccessToken}
                   onChange={(upstreamAccessToken) =>
                     setForm({ ...form, upstreamAccessToken, type: "sub2api" })
                   }
                   type="password"
-                />
-                <TextInput
-                  label={form.id ? "Refresh token，留空则保持原值" : "Refresh token"}
-                  value={form.upstreamRefreshToken}
-                  onChange={(upstreamRefreshToken) =>
-                    setForm({ ...form, upstreamRefreshToken, type: "sub2api" })
-                  }
-                  type="password"
-                />
-                <TextInput
-                  label="Token 过期时间"
-                  value={form.upstreamTokenExpiresAt}
-                  onChange={(upstreamTokenExpiresAt) =>
-                    setForm({ ...form, upstreamTokenExpiresAt, type: "sub2api" })
-                  }
-                  placeholder="2026-07-05T12:00:00.000Z"
-                />
+                />}
+                {form.accountTemplate === "sub2api" && (
+                  <>
+                    <TextInput
+                      label={form.id ? "Refresh token，留空则保持原值" : "Refresh token"}
+                      value={form.upstreamRefreshToken}
+                      onChange={(upstreamRefreshToken) =>
+                        setForm({ ...form, upstreamRefreshToken, type: "sub2api" })
+                      }
+                      type="password"
+                    />
+                    <TextInput
+                      label="Token 过期时间"
+                      value={form.upstreamTokenExpiresAt}
+                      onChange={(upstreamTokenExpiresAt) =>
+                        setForm({ ...form, upstreamTokenExpiresAt, type: "sub2api" })
+                      }
+                      placeholder="2026-07-05T12:00:00.000Z"
+                    />
+                  </>
+                )}
+                {form.accountTemplate === "newapi" && (
+                  <p className="text-sm text-muted-foreground">
+                    需要授予 group:read、api_key:read、api_key:write、api_key:reveal 权限的 NewAPI 访问令牌和用户 ID。创建操作会在该用户下按选定分组创建 API Key。
+                  </p>
+                )}
               </div>
             </div>
           )}
