@@ -48,7 +48,7 @@ const themeStorageKey = "llm-upstream-monitor-theme"
 const localNotificationReadStorageKey = "llm-upstream-monitor-local-notification-read"
 const localNotificationArchivedStorageKey = "llm-upstream-monitor-local-notification-archived"
 const localNotificationDeletedStorageKey = "llm-upstream-monitor-local-notification-deleted"
-const checksPerChannelLimit = 2000
+const checksPerChannelLimit = 360
 const notificationPageSize = 50
 const upstreamSnapshotPollMs = 60_000
 

@@ -85,17 +85,34 @@ const createChannelSchema = channelSchema.superRefine((value, ctx) => {
   }
 
   if (value.accountTemplate === "newapi" && (!value.accessToken || !value.userId)) {
-    ctx.addIssue({ code: "custom", path: ["accessToken"], message: "NewAPI 批量创建需要访问令牌和用户 ID" })
+    ctx.addIssue({
+      code: "custom",
+      path: ["accessToken"],
+      message: "NewAPI 批量创建需要访问令牌和用户 ID",
+    })
   }
 
   if (value.type === "sub2api" && value.accountTemplate !== "newapi" && !value.apiKey) {
-    ctx.addIssue({ code: "custom", path: ["apiKey"], message: "Sub2API 需要 API Key" })
+    const hasUpstreamCredentials = Boolean(
+      value.upstreamRefreshToken || value.upstreamAccessToken || value.upstreamPassword,
+    )
+    if (!hasUpstreamCredentials) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["apiKey"],
+        message: "请填写 API Key（用于余额检测）或上游 Refresh Token / 登录凭证",
+      })
+    }
   }
 })
 
 const updateChannelSchema = channelSchema.partial().superRefine((value, ctx) => {
   if (value.accountTemplate === "newapi" && value.upstreamUsername === "") {
-    ctx.addIssue({ code: "custom", path: ["upstreamUsername"], message: "NewAPI 管理员用户名不能为空" })
+    ctx.addIssue({
+      code: "custom",
+      path: ["upstreamUsername"],
+      message: "NewAPI 管理员用户名不能为空",
+    })
   }
   if (value.type === "newapi") {
     if (value.accessToken === "") {
@@ -363,7 +380,9 @@ export async function registerChannelRoutes(app: FastifyInstance) {
       try {
         return { data: await readNewApiDirectory(channel) }
       } catch (error) {
-        return reply.code(400).send({ message: error instanceof Error ? error.message : "NewAPI 目录读取失败" })
+        return reply
+          .code(400)
+          .send({ message: error instanceof Error ? error.message : "NewAPI 目录读取失败" })
       }
     },
   )

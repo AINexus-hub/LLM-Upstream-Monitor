@@ -140,15 +140,37 @@ function toPublicChannel(
 export async function listChannels(): Promise<PublicChannel[]> {
   const channelsResult = await db.execute("select * from channels order by created_at desc")
   const channels = channelsResult.rows.map((row) => mapChannel(row as unknown as DbChannelRow))
-
-  const latestTaskRuns = await getLatestTaskRunsByChannel(channels.map((channel) => channel.id))
-  const publicChannels = await Promise.all(
-    channels.map(async (channel) =>
-      toPublicChannel(channel, await getLatestCheck(channel.id), latestTaskRuns[channel.id]),
-    ),
+  const channelIds = channels.map((channel) => channel.id)
+  const [latestTaskRuns, latestChecksResult] = await Promise.all([
+    getLatestTaskRunsByChannel(channelIds),
+    channelIds.length === 0
+      ? Promise.resolve({ rows: [] })
+      : db.execute({
+          sql: `select id, channel_id, checked_at, success, is_valid, plan_name,
+              remaining, used, total, unit, error_message
+            from (
+              select checks.*,
+                row_number() over (
+                  partition by channel_id
+                  order by checked_at desc, id desc
+                ) as row_number
+              from balance_checks checks
+              where channel_id in (${channelIds.map(() => "?").join(", ")})
+            )
+            where row_number = 1`,
+          args: channelIds,
+        }),
+  ])
+  const latestChecks = Object.fromEntries(
+    latestChecksResult.rows.map((row) => {
+      const check = mapCheck(row as unknown as DbCheckRow)
+      return [check.channelId, check]
+    }),
   )
 
-  return publicChannels
+  return channels.map((channel) =>
+    toPublicChannel(channel, latestChecks[channel.id], latestTaskRuns[channel.id]),
+  )
 }
 
 export async function getChannel(id: string): Promise<ChannelRow | null> {

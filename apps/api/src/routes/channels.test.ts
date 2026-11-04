@@ -114,6 +114,49 @@ describe("channel routes", () => {
     expect(updated.data.upstreamTokenExpiresAt).toBeUndefined()
   })
 
+  it("allows a Sub2API account with only a refresh token", async () => {
+    const { app } = await loadApp()
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/channels",
+      headers: authHeaders,
+      payload: {
+        name: "Sub2API account",
+        type: "sub2api",
+        accountTemplate: "sub2api",
+        requestUrl: "https://sub2api.example.com",
+        upstreamRefreshToken: "refresh-token",
+        timeoutSeconds: 30,
+        checkIntervalMinutes: 60,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body).data.hasUpstreamRefreshToken).toBe(true)
+  })
+
+  it("still requires credentials for a Sub2API channel", async () => {
+    const { app } = await loadApp()
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/channels",
+      headers: authHeaders,
+      payload: {
+        name: "Sub2API account",
+        type: "sub2api",
+        accountTemplate: "sub2api",
+        requestUrl: "https://sub2api.example.com",
+        timeoutSeconds: 30,
+        checkIntervalMinutes: 60,
+      },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(JSON.parse(response.body).issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: ["apiKey"] })]),
+    )
+  })
+
   it("persists the independent NewAPI account template", async () => {
     const { app } = await loadApp()
     const response = await app.inject({

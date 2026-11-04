@@ -19,6 +19,33 @@ describe("channels repository", () => {
     vi.restoreAllMocks()
   })
 
+  it("includes the latest balance check in each listed channel", async () => {
+    const channels = await loadRepositories()
+    const channel = await channels.createChannel({
+      name: "Listed Channel",
+      type: "sub2api",
+      requestUrl: "https://example.test",
+      apiKey: "test-key",
+      timeoutSeconds: 1,
+      checkIntervalMinutes: 1,
+    })
+
+    await channels.saveCheck(channel.id, {
+      success: true,
+      isValid: true,
+      remaining: 12.5,
+      unit: "USD",
+    })
+
+    const listed = await channels.listChannels()
+    expect(listed).toHaveLength(1)
+    expect(listed[0]?.lastCheck).toMatchObject({
+      channelId: channel.id,
+      remaining: 12.5,
+      unit: "USD",
+    })
+  })
+
   it("persists alert toggles and reloads them with public channel data", async () => {
     const channels = await loadRepositories()
     const channel = await channels.createChannel({

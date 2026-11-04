@@ -118,9 +118,7 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
               <CheckboxInput
                 label="余额阈值告警"
                 checked={form.balanceAlertEnabled}
-                onChange={(balanceAlertEnabled) =>
-                  setForm({ ...form, balanceAlertEnabled })
-                }
+                onChange={(balanceAlertEnabled) => setForm({ ...form, balanceAlertEnabled })}
               />
               <CheckboxInput
                 label="余额检测"
@@ -137,9 +135,7 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
               <CheckboxInput
                 label="倍率调整告警"
                 checked={form.groupRateAlertEnabled}
-                onChange={(groupRateAlertEnabled) =>
-                  setForm({ ...form, groupRateAlertEnabled })
-                }
+                onChange={(groupRateAlertEnabled) => setForm({ ...form, groupRateAlertEnabled })}
               />
             </div>
           </div>
@@ -155,7 +151,9 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
                 <select
                   className="h-10 border border-input bg-background/75 px-3 text-sm outline-none focus:border-primary"
                   value={form.type}
-                  onChange={(event) => setForm({ ...form, type: event.target.value as ChannelType })}
+                  onChange={(event) =>
+                    setForm({ ...form, type: event.target.value as ChannelType })
+                  }
                 >
                   <option value="newapi">NewAPI 余额检测</option>
                   <option value="sub2api">Sub2API API Key 检测</option>
@@ -200,7 +198,8 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
                   className="h-10 border border-input bg-background/75 px-3 text-sm outline-none focus:border-primary"
                   value={form.accountTemplate}
                   onChange={(event) => {
-                    const accountTemplate = event.target.value as ChannelFormState["accountTemplate"]
+                    const accountTemplate = event.target
+                      .value as ChannelFormState["accountTemplate"]
                     setForm({ ...form, accountTemplate, type: "sub2api" })
                   }}
                 >
@@ -211,11 +210,14 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
               <div className="grid gap-4 sm:grid-cols-2">
                 {form.accountTemplate === "sub2api" && (
                   <TextInput
-                    label={form.id ? "Sub2API API Key，留空则保持原值" : "Sub2API API Key"}
+                    label={
+                      form.id
+                        ? "Sub2API API Key（余额检测用，可留空保持原值）"
+                        : "Sub2API API Key（余额检测用，可选）"
+                    }
                     value={form.apiKey}
                     onChange={(apiKey) => setForm({ ...form, apiKey, type: "sub2api" })}
                     type="password"
-                    required={!form.id}
                   />
                 )}
                 <TextInput
@@ -246,24 +248,32 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
                   <TextInput
                     label="上游账号邮箱"
                     value={form.upstreamUsername}
-                    onChange={(upstreamUsername) => setForm({ ...form, upstreamUsername, type: "sub2api" })}
+                    onChange={(upstreamUsername) =>
+                      setForm({ ...form, upstreamUsername, type: "sub2api" })
+                    }
                     placeholder="name@example.com"
                   />
                 )}
-                {form.accountTemplate === "sub2api" && <TextInput
-                  label={form.id ? "上游密码，留空则保持原值" : "上游密码"}
-                  value={form.upstreamPassword}
-                  onChange={(upstreamPassword) => setForm({ ...form, upstreamPassword, type: "sub2api" })}
-                  type="password"
-                />}
-                {form.accountTemplate === "sub2api" && <TextInput
-                  label={form.id ? "Access token，留空则保持原值" : "Access token"}
-                  value={form.upstreamAccessToken}
-                  onChange={(upstreamAccessToken) =>
-                    setForm({ ...form, upstreamAccessToken, type: "sub2api" })
-                  }
-                  type="password"
-                />}
+                {form.accountTemplate === "sub2api" && (
+                  <TextInput
+                    label={form.id ? "上游密码，留空则保持原值" : "上游密码"}
+                    value={form.upstreamPassword}
+                    onChange={(upstreamPassword) =>
+                      setForm({ ...form, upstreamPassword, type: "sub2api" })
+                    }
+                    type="password"
+                  />
+                )}
+                {form.accountTemplate === "sub2api" && (
+                  <TextInput
+                    label={form.id ? "Access token，留空则保持原值" : "Access token"}
+                    value={form.upstreamAccessToken}
+                    onChange={(upstreamAccessToken) =>
+                      setForm({ ...form, upstreamAccessToken, type: "sub2api" })
+                    }
+                    type="password"
+                  />
+                )}
                 {form.accountTemplate === "sub2api" && (
                   <>
                     <TextInput
@@ -286,7 +296,8 @@ export function ChannelModal({ form, isSaving, onClose, onSubmit, setForm }: Cha
                 )}
                 {form.accountTemplate === "newapi" && (
                   <p className="text-sm text-muted-foreground">
-                    需要授予 group:read、api_key:read、api_key:write、api_key:reveal 权限的 NewAPI 访问令牌和用户 ID。创建操作会在该用户下按选定分组创建 API Key。
+                    需要授予 group:read、api_key:read、api_key:write、api_key:reveal 权限的 NewAPI
+                    访问令牌和用户 ID。创建操作会在该用户下按选定分组创建 API Key。
                   </p>
                 )}
               </div>
