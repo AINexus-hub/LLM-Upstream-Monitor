@@ -435,6 +435,36 @@ async function withUpstreamSession<T>(
   return action((await getChannel(channel.id)) ?? channel, accessToken)
 }
 
+export async function revealSub2ApiKey(channelId: string, keyId: string) {
+  if (!/^\d+$/.test(keyId) || !Number.isSafeInteger(Number(keyId)) || Number(keyId) < 1) {
+    throw new Error("Sub2API 密钥 ID 无效")
+  }
+  return withUpstreamSession(channelId, async (channel, accessToken) => {
+    for (let page = 1; page <= 100; page++) {
+      const data = await getAuthorized<unknown>(
+        channel,
+        buildQuery("/keys", { page, page_size: 100 }),
+        accessToken,
+      )
+      const record = asRecord(data)
+      const items = Array.isArray(data) ? data :
+        Array.isArray(record.items) ? record.items :
+        Array.isArray(record.keys) ? record.keys :
+        Array.isArray(record.records) ? record.records : []
+      const keyRecord = items.map(asRecord).find((item) => String(item.id ?? item.key_id ?? item.uuid ?? "") === keyId)
+      if (keyRecord) {
+        const key = [keyRecord.key, keyRecord.api_key, keyRecord.apiKey, keyRecord.token]
+          .find((value): value is string => typeof value === "string" && Boolean(value))
+        if (!key || /[*•]/.test(key)) throw new Error("Sub2API 令牌列表未返回完整密钥")
+        return key
+      }
+      const total = asNumber(record.total)
+      if (items.length < 100 || (total !== undefined && page * 100 >= total)) break
+    }
+    throw new Error("Sub2API 密钥不存在或当前账号无权读取")
+  })
+}
+
 export async function listSub2ApiGroups(channelId: string) {
   return withUpstreamSession(channelId, async (channel, accessToken) => {
     const [data, rates] = await Promise.all([
@@ -546,21 +576,6 @@ export async function getSub2ApiUpstreamSnapshot(channelId: string) {
   try {
     const { accessToken, refreshedByRefreshToken } = await refreshSessionForProbe(channel)
     const latestChannel = (await getChannel(channel.id)) ?? channel
-    const trendPath = buildQuery("/usage/dashboard/trend", {
-      start_date: range.startDate,
-      end_date: range.endDate,
-      granularity: range.granularity,
-    })
-    const modelsPath = buildQuery("/usage/dashboard/models", {
-      start_date: range.startDate,
-      end_date: range.endDate,
-    })
-    const usagePath = buildQuery("/usage", {
-      start_date: range.startDate,
-      end_date: range.endDate,
-      page: 1,
-      page_size: 20,
-    })
     const keysPath = buildQuery("/keys", {
       page: 1,
       page_size: 100,
@@ -570,11 +585,6 @@ export async function getSub2ApiUpstreamSnapshot(channelId: string) {
       me,
       profile,
       stats,
-      trend,
-      models,
-      recentUsage,
-      platformQuotas,
-      snapshotV2,
       keys,
       availableGroups,
       groupRates,
@@ -583,11 +593,6 @@ export async function getSub2ApiUpstreamSnapshot(channelId: string) {
       getAuthorizedOptional(latestChannel, "/auth/me", accessToken),
       getAuthorizedOptional(latestChannel, "/user/profile", accessToken),
       getAuthorizedOptional(latestChannel, "/usage/dashboard/stats", accessToken),
-      getAuthorizedOptional(latestChannel, trendPath, accessToken),
-      getAuthorizedOptional(latestChannel, modelsPath, accessToken),
-      getAuthorizedOptional(latestChannel, usagePath, accessToken),
-      getAuthorizedOptional(latestChannel, "/user/platform-quotas", accessToken),
-      getAuthorizedOptional(latestChannel, "/usage/dashboard/snapshot-v2", accessToken),
       getAuthorizedOptional(latestChannel, keysPath, accessToken),
       getAuthorizedOptional(latestChannel, "/groups/available", accessToken),
       getAuthorizedOptional(latestChannel, "/groups/rates", accessToken),
@@ -616,11 +621,11 @@ export async function getSub2ApiUpstreamSnapshot(channelId: string) {
       },
       dashboard: {
         stats,
-        trend,
-        models,
-        recentUsage,
-        platformQuotas,
-        snapshotV2,
+        trend: { data: null, error: null },
+        models: { data: null, error: null },
+        recentUsage: { data: null, error: null },
+        platformQuotas: { data: null, error: null },
+        snapshotV2: { data: null, error: null },
       },
       keys: {
         list: keys,

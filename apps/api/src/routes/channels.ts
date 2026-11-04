@@ -14,6 +14,7 @@ import {
   createUpstreamApiKeys,
   diagnoseUpstreamProvider,
   listUpstreamGroups,
+  revealUpstreamApiKey,
   syncUpstreamProvider,
 } from "../services/upstream-provider-adapters.js"
 import {
@@ -399,6 +400,21 @@ export async function registerChannelRoutes(app: FastifyInstance) {
       } catch (error) {
         return reply.code(400).send({
           message: error instanceof Error ? error.message : "上游分组读取失败",
+        })
+      }
+    },
+  )
+
+  app.get<{ Params: { id: string; tokenId: string } }>(
+    "/api/channels/:id/upstream-keys/:tokenId",
+    async (request, reply) => {
+      try {
+        const key = await revealUpstreamApiKey(request.params.id, request.params.tokenId)
+        if (key === null) return reply.code(404).send({ message: "渠道不存在" })
+        return { data: { key } }
+      } catch (error) {
+        return reply.code(400).send({
+          message: error instanceof Error ? error.message : "读取上游密钥失败",
         })
       }
     },

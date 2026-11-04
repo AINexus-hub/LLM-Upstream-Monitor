@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import type { ChannelRow } from "../types.js"
-import { createNewApiKeys, listNewApiGroups } from "./newapi-keys.js"
+import { createNewApiKeys, listNewApiGroups, listNewApiTokens, revealNewApiToken } from "./newapi-keys.js"
 
 const channel = {
   id: "channel-1", name: "NewAPI", type: "sub2api", accountTemplate: "newapi",
@@ -34,6 +34,34 @@ describe("NewAPI key management", () => {
       const headers = new Headers(groupCall?.[1]?.headers)
       expect(headers.get("authorization")).toBe("Bearer access-secret")
       expect(headers.get("new-api-user")).toBe("42")
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
+  it("lists existing tokens and reveals a selected token without exposing unrelated credentials", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input))
+      if (url.pathname === "/api/token/" && url.searchParams.get("p") === "1") {
+        return Response.json({ success: true, data: { items: [
+          { id: 10, name: "existing", key: "sk-a********wxyz", group: "vip", status: 1, remain_quota: 500, used_quota: 25 },
+        ], total: 1 } })
+      }
+      if (url.pathname === "/api/token/10/key" && init?.method === "POST") {
+        return Response.json({ success: true, data: { key: "sk-existing-full-secret" } })
+      }
+      throw new Error(`unexpected request ${url} ${init?.method}`)
+    })
+    try {
+      await expect(listNewApiTokens(channel)).resolves.toEqual([{
+        id: "10", name: "existing", keyPreview: "sk-a********wxyz", groupName: "vip",
+        status: "1", quota: 500, used: 25, createdAt: undefined,
+      }])
+      await expect(revealNewApiToken(channel, "10")).resolves.toBe("sk-existing-full-secret")
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+        "https://newapi.test/api/token/?p=1&page_size=100",
+        "https://newapi.test/api/token/10/key",
+      ])
     } finally {
       fetchMock.mockRestore()
     }

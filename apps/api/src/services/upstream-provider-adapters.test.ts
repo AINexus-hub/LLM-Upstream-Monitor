@@ -23,6 +23,35 @@ describe("upstream provider adapters", () => {
     vi.restoreAllMocks()
   })
 
+  it("reads an existing Sub2API key from its paginated key list", async () => {
+    const { adapters, channels } = await loadModules()
+    const sub2api = await channels.createChannel({
+      name: "Sub2API",
+      type: "sub2api",
+      accountTemplate: "sub2api",
+      requestUrl: "https://example.test",
+      upstreamAccessToken: "session-token",
+      upstreamTokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      timeoutSeconds: 10,
+      checkIntervalMinutes: 5,
+    })
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({
+      data: {
+        items: [
+          { id: 23, name: "existing key", key: "sk-sub2api-existing-secret" },
+        ],
+        total: 1,
+      },
+    }))
+    try {
+      await expect(adapters.revealUpstreamApiKey(sub2api.id, "23")).resolves.toBe("sk-sub2api-existing-secret")
+      expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://example.test/api/v1/keys?page=1&page_size=100")
+      expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("authorization")).toBe("Bearer session-token")
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
   it("supports Sub2API and validates NewAPI administrator login during sync", async () => {
     const { adapters, channels, upstreamAccounts } = await loadModules()
     const sub2api = await channels.createChannel({
@@ -59,6 +88,9 @@ describe("upstream provider adapters", () => {
           data: [{ vendor_id: 6, enable_groups: ["default"] }],
         })
       }
+      if (url.pathname === "/api/token/") return Response.json({ success: true, data: { items: [
+        { id: 17, name: "existing key", key: "sk-test********abcd", group: "default", status: 1 },
+      ], total: 1 } })
       throw new Error(`unexpected request ${url}`)
     })
     const record = await adapters.syncUpstreamProvider(newapi.id)
@@ -67,6 +99,11 @@ describe("upstream provider adapters", () => {
 
     const snapshot = await upstreamAccounts.refreshUpstreamAccountSnapshot(newapi.id)
     expect(snapshot?.summary.metrics.balance).toBe(2)
+    expect(snapshot?.summary.metrics.apiKeyCount).toBe(1)
+    expect(snapshot?.summary.apiKeys).toContainEqual(expect.objectContaining({
+      id: "17", name: "existing key", keyPreview: "sk-test********abcd", groupName: "default",
+    }))
+    expect(JSON.stringify(snapshot?.summary)).not.toContain("sk-test-full-secret")
     expect(snapshot?.summary.groups).toContainEqual({
       id: "default",
       name: "default",

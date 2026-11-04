@@ -178,6 +178,46 @@ describe("channel routes", () => {
     expect(JSON.parse(response.body).data.accountTemplate).toBe("newapi")
   })
 
+  it("reveals an existing NewAPI token only through the authenticated key endpoint", async () => {
+    const { app } = await loadApp()
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/channels",
+      headers: authHeaders,
+      payload: {
+        name: "NewAPI Admin",
+        type: "sub2api",
+        accountTemplate: "newapi",
+        requestUrl: "https://newapi.example.com",
+        accessToken: "access-token",
+        userId: "42",
+        timeoutSeconds: 30,
+        checkIntervalMinutes: 60,
+      },
+    })
+    const channelId = JSON.parse(createResponse.body).data.id as string
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ success: true, data: { key: "sk-existing-secret" } }),
+    )
+    try {
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/channels/${channelId}/upstream-keys/123`,
+        headers: authHeaders,
+      })
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body)).toEqual({ data: { key: "sk-existing-secret" } })
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://newapi.example.com/api/token/123/key",
+        expect.objectContaining({ method: "POST" }),
+      )
+      const unauthorized = await app.inject({ method: "GET", url: `/api/channels/${channelId}/upstream-keys/123` })
+      expect(unauthorized.statusCode).toBe(401)
+    } finally {
+      fetchMock.mockRestore()
+    }
+  })
+
   it("rejects invalid upstream key payloads before calling upstream", async () => {
     const { app } = await loadApp()
     const response = await app.inject({

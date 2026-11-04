@@ -726,6 +726,16 @@ function App() {
     [authToken],
   )
 
+  const handleRevealUpstreamKey = useCallback(
+    (channelId: string, tokenId: string) =>
+      request<{ key: string }>(
+        `/api/channels/${channelId}/upstream-keys/${tokenId}`,
+        undefined,
+        authToken,
+      ),
+    [authToken],
+  )
+
   const handleCreateUpstreamKeys = useCallback(
     (channelId: string, payload: { groupIds: string[]; quota?: number; expiresInDays?: number }) =>
       request<
@@ -877,6 +887,7 @@ function App() {
             snapshots={upstreamSnapshots}
             onCreate={openCreateModal}
             onCreateKeys={handleCreateUpstreamKeys}
+            onRevealKey={handleRevealUpstreamKey}
             onLoadGroups={handleLoadUpstreamGroups}
             onRefresh={handleRefreshUpstreamSnapshot}
             onSelectChannel={setSelectedUpstreamChannelId}

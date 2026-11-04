@@ -317,7 +317,7 @@ function buildNewApiSummary(snapshot: NewApiUpstreamSnapshot): UpstreamSnapshotS
     fetchedAt: snapshot.fetchedAt,
     metrics: {
       balance: quota === undefined ? undefined : quota / 500000,
-      apiKeyCount: undefined,
+      apiKeyCount: snapshot.tokens.length,
     },
     groups: snapshot.groups.map((item) => ({
       id: item.id,
@@ -326,13 +326,25 @@ function buildNewApiSummary(snapshot: NewApiUpstreamSnapshot): UpstreamSnapshotS
       platforms: item.platforms,
       rateMultiplier: item.rateMultiplier,
     })),
-    apiKeys: [],
+    apiKeys: snapshot.tokens.map((token) => ({
+      id: token.id,
+      name: token.name,
+      keyPreview: token.keyPreview,
+      groupName: token.groupName,
+      status: token.status,
+      quota: token.quota,
+      used: token.used,
+      createdAt: token.createdAt,
+    })),
     platformUsage: [],
     modelUsage: [],
     recentUsage: [],
-    errors: quota === undefined || usedQuota === undefined
-      ? [{ module: "账号", message: "NewAPI 用户资料缺少余额字段" }]
-      : group ? [] : [{ module: "账号", message: "NewAPI 用户资料缺少当前分组" }],
+    errors: [
+      ...(quota === undefined || usedQuota === undefined
+        ? [{ module: "账号", message: "NewAPI 用户资料缺少余额字段" }]
+        : group ? [] : [{ module: "账号", message: "NewAPI 用户资料缺少当前分组" }]),
+      ...(snapshot.tokenError ? [{ module: "API密钥", message: snapshot.tokenError }] : []),
+    ],
   }
 }
 

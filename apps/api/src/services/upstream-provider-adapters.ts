@@ -1,11 +1,12 @@
 import type { BalanceCheckRecord, UpstreamProvider } from "@llm-upstream-monitor/shared"
 import { getChannel, saveCheck, updateUpstreamSession } from "../repositories/channels.js"
 import type { ChannelRow } from "../types.js"
-import { createNewApiKeys, listNewApiGroups, readNewApiEndpoint } from "./newapi-keys.js"
+import { createNewApiKeys, listNewApiGroups, listNewApiTokens, readNewApiEndpoint, revealNewApiToken } from "./newapi-keys.js"
 import {
   createSub2ApiKeys,
   getSub2ApiUpstreamSnapshot,
   listSub2ApiGroups,
+  revealSub2ApiKey,
   syncSub2ApiUpstream,
   type Sub2ApiUpstreamSnapshot,
 } from "./sub2api-upstream.js"
@@ -16,6 +17,8 @@ export type NewApiUpstreamSnapshot = {
   fetchedAt: string
   profile: Record<string, unknown>
   groups: Awaited<ReturnType<typeof listNewApiGroups>>
+  tokens: Awaited<ReturnType<typeof listNewApiTokens>>
+  tokenError?: string
   pricing: Record<string, unknown>
 }
 
@@ -43,16 +46,20 @@ const newApiAdapter: UpstreamProviderAdapter = {
   captureSnapshot: async (channelId) => {
     const channel = await getChannel(channelId)
     if (!channel) return null
-    const [profile, groupResponse, pricing] = await Promise.all([
+    const [profile, groupResponse, pricing, tokenResult] = await Promise.all([
       readNewApiEndpoint(channel, "/api/user/self"),
       readNewApiEndpoint(channel, "/api/user/self/groups"),
       readNewApiEndpoint(channel, "/api/pricing", true).catch(() => ({})),
+      listNewApiTokens(channel).then((tokens) => ({ tokens })).catch((error: unknown) => ({
+        tokens: [],
+        tokenError: error instanceof Error ? error.message : "NewAPI 令牌列表读取失败",
+      })),
     ])
     const groups = await listNewApiGroups(channel, groupResponse, pricing)
     if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
       throw new Error("NewAPI 用户资料格式无效")
     }
-    return { fetchedAt: new Date().toISOString(), profile: profile as Record<string, unknown>, groups, pricing: pricing as Record<string, unknown> }
+    return { fetchedAt: new Date().toISOString(), profile: profile as Record<string, unknown>, groups, ...tokenResult, pricing: pricing as Record<string, unknown> }
   },
   diagnose: async (channelId) => newApiAdapter.captureSnapshot(channelId),
   syncBalance: async (channelId) => {
@@ -135,6 +142,18 @@ export async function listUpstreamGroups(channelId: string) {
     throw new Error("目前仅支持 Sub2API 或 NewAPI 获取分组")
   }
   return listSub2ApiGroups(channel.id)
+}
+
+export async function revealUpstreamApiKey(channelId: string, tokenId: string) {
+  const channel = await getChannel(channelId)
+  if (!channel) return null
+  if (channel.accountTemplate === "newapi") {
+    return revealNewApiToken(channel, tokenId)
+  }
+  if (channel.accountTemplate === "sub2api" || channel.type === "sub2api") {
+    return revealSub2ApiKey(channelId, tokenId)
+  }
+  throw new Error("此供应商不支持读取已有密钥")
 }
 
 export async function createUpstreamApiKeys(

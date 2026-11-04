@@ -1,5 +1,5 @@
 import type { PublicChannel, UpstreamSnapshotRecord } from "@llm-upstream-monitor/shared"
-import { Check, Copy, Filter, KeyRound, RefreshCw } from "lucide-react"
+import { Check, Copy, Filter, KeyRound, RefreshCw, Search, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
 import { EmptyState } from "@/components/common/display"
@@ -38,6 +38,7 @@ type UpstreamAccountsPageProps = {
     channelId: string,
     payload: { groupIds: string[]; quota?: number; expiresInDays?: number },
   ) => Promise<CreatedKeyResult[]>
+  onRevealKey: (channelId: string, tokenId: string) => Promise<{ key: string }>
   onLoadGroups: (channelId: string) => Promise<AvailableGroup[]>
   onRefresh: (channelId: string) => void
   onSelectChannel: (channelId: string) => void
@@ -50,11 +51,19 @@ export default function UpstreamAccountsPage({
   snapshots,
   onCreate,
   onCreateKeys,
+  onRevealKey,
   onLoadGroups,
   onRefresh,
   onSelectChannel,
 }: UpstreamAccountsPageProps) {
+  const [channelSearch, setChannelSearch] = useState("")
   const accountChannels = channels.filter(hasUpstreamLogin)
+  const normalizedSearch = channelSearch.trim().toLocaleLowerCase()
+  const visibleChannels = accountChannels.filter((channel) =>
+    [channel.name, channel.requestUrl, channel.officialUrl, channel.upstreamLoginUrl].some(
+      (value) => value?.toLocaleLowerCase().includes(normalizedSearch),
+    ),
+  )
   const selectedChannel =
     accountChannels.find((channel) => channel.id === selectedChannelId) ?? accountChannels[0]
   const activeChannelId = selectedChannel?.id
@@ -75,12 +84,21 @@ export default function UpstreamAccountsPage({
   const [keyError, setKeyError] = useState<string>()
   const [copiedGroupId, setCopiedGroupId] = useState<string>()
   const [copiedAll, setCopiedAll] = useState(false)
+  const [revealedKeys, setRevealedKeys] = useState<Record<string, string>>({})
+  const [revealingKeyId, setRevealingKeyId] = useState<string>()
+  const [keyReadError, setKeyReadError] = useState<string>()
+
+  useEffect(() => {
+    setRevealedKeys({})
+  }, [selectedSnapshot?.fetchedAt])
 
   useEffect(() => {
     setGroups([])
     setSelectedGroupIds([])
     setSelectedGroupPlatform("all")
     setCreatedKeys([])
+    setRevealedKeys({})
+    setKeyReadError(undefined)
     setGroupError(undefined)
     if (!activeChannelId) return
     if (activeChannelType === "newapi") {
@@ -105,6 +123,20 @@ export default function UpstreamAccountsPage({
       )
       .finally(() => setIsLoadingGroups(false))
   }, [activeChannelId, activeChannelType, onLoadGroups])
+
+  async function revealKey(tokenId: string) {
+    if (!activeChannelId) return
+    setRevealingKeyId(tokenId)
+    setKeyReadError(undefined)
+    try {
+      const result = await onRevealKey(activeChannelId, tokenId)
+      setRevealedKeys((current) => ({ ...current, [tokenId]: result.key }))
+    } catch (error) {
+      setKeyReadError(error instanceof Error ? error.message : "读取密钥失败")
+    } finally {
+      setRevealingKeyId(undefined)
+    }
+  }
 
   function generatedName(group: AvailableGroup) {
     return group.rateMultiplier === undefined
@@ -176,19 +208,51 @@ export default function UpstreamAccountsPage({
   }
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[320px_1fr]">
-      <Card>
+    <section className="grid items-start gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle>账号接入供应商</CardTitle>
           <CardDescription>展示已配置上游登录态的供应商。</CardDescription>
+          {accountChannels.length > 0 && (
+            <div className="mt-3 grid gap-2">
+              <div className="relative">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  aria-label="搜索账号接入供应商"
+                  placeholder="搜索供应商名称或地址"
+                  className="h-9 w-full min-w-0 appearance-none border border-input bg-background/75 pl-9 pr-9 text-sm outline-none focus:border-primary [&::-webkit-search-cancel-button]:appearance-none"
+                  value={channelSearch}
+                  onChange={(event) => setChannelSearch(event.target.value)}
+                />
+                {channelSearch && (
+                  <button
+                    type="button"
+                    aria-label="清空供应商搜索"
+                    className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground"
+                    onClick={() => setChannelSearch("")}
+                  >
+                    <X aria-hidden="true" className="size-4" />
+                  </button>
+                )}
+              </div>
+              <p role="status" className="text-xs text-muted-foreground">
+                显示 {visibleChannels.length} / {accountChannels.length} 个供应商
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="grid gap-2">
           {accountChannels.length === 0 ? (
             <EmptyState actionLabel="添加账号接入" onAction={onCreate}>
               暂无账号接入供应商。
             </EmptyState>
+          ) : visibleChannels.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              没有匹配的供应商，请尝试其他关键词。
+            </p>
           ) : (
-            accountChannels.map((channel) => {
+            visibleChannels.map((channel) => {
               const snapshot = snapshots.find((item) => item.channelId === channel.id)
               const isSelected = selectedChannel?.id === channel.id
 
@@ -203,8 +267,8 @@ export default function UpstreamAccountsPage({
                   onClick={() => onSelectChannel(channel.id)}
                   type="button"
                 >
-                  <span className="font-semibold">{channel.name}</span>
-                  <span className="text-xs text-muted-foreground">{channel.requestUrl}</span>
+                  <span className="break-all font-semibold">{channel.name}</span>
+                  <span className="break-all text-xs text-muted-foreground">{channel.requestUrl}</span>
                   <span className="text-xs text-muted-foreground">
                     快照 {snapshot ? formatDateTime(snapshot.fetchedAt) : "未刷新"}
                   </span>
@@ -215,15 +279,21 @@ export default function UpstreamAccountsPage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6">
+      <div className="grid min-w-0 gap-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-xl font-semibold">上游账号看板</h2>
             <p className="text-sm text-muted-foreground">
               {selectedChannel
                 ? `${selectedChannel.name} 的分组、倍率、API Key 和用量快照。`
                 : "选择一个账号接入供应商查看上游数据。"}
             </p>
+            {selectedChannel && (
+              <UpstreamApiAddress
+                key={`${selectedChannel.id}-${selectedChannel.requestUrl}`}
+                address={selectedChannel.requestUrl}
+              />
+            )}
           </div>
           {selectedChannel && (
             <Button
@@ -284,7 +354,23 @@ export default function UpstreamAccountsPage({
                     {summary.errors.map((item) => <p key={`${item.module}-${item.message}`} className="text-sm text-destructive">{item.module}: {item.message}</p>)}
                   </CardContent></Card>
                 )}
-                <GroupsTable groups={summary.groups} />
+                <section className="grid min-w-0 items-stretch gap-4 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                  <div className="order-2 min-w-0 2xl:order-1"><GroupsTable groups={summary.groups} /></div>
+                  <div className="order-1 min-w-0 2xl:order-2">
+                  <ApiKeysTable
+                  apiKeys={summary.apiKeys}
+                  groups={summary.groups}
+                  canReveal={summary.provider === "newapi" || summary.provider === "sub2api"}
+                  revealedKeys={revealedKeys}
+                  revealingKeyId={revealingKeyId}
+                  readError={keyReadError}
+                  onReveal={revealKey}
+                    onCopy={async (key) => {
+                      await navigator.clipboard.writeText(key)
+                    }}
+                  />
+                  </div>
+                </section>
               </>
             )}
           </>
@@ -535,21 +621,71 @@ export default function UpstreamAccountsPage({
               </Card>
             )}
 
-            <section className="grid gap-6 2xl:grid-cols-2">
-              <GroupsTable groups={summary.groups} />
-              <UsageTable title="平台拆分" items={summary.platformUsage} range={summary.range} />
+            <section className="grid min-w-0 items-stretch gap-4 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+              <div className="order-2 min-w-0 2xl:order-1"><GroupsTable groups={summary.groups} /></div>
+              <div className="order-1 min-w-0 2xl:order-2">
+              <ApiKeysTable
+                apiKeys={summary.apiKeys}
+                groups={summary.groups}
+                canReveal={summary.provider === "newapi" || summary.provider === "sub2api"}
+                revealedKeys={revealedKeys}
+                revealingKeyId={revealingKeyId}
+                readError={keyReadError}
+                onReveal={revealKey}
+                onCopy={async (key) => {
+                  await navigator.clipboard.writeText(key)
+                }}
+              />
+              </div>
             </section>
-
-            <section className="grid gap-6 2xl:grid-cols-2">
-              <UsageTable title="模型分布" items={summary.modelUsage} range={summary.range} />
-              <ApiKeysTable apiKeys={summary.apiKeys} groups={summary.groups} />
-            </section>
-
-            <RecentUsageTable items={summary.recentUsage} />
           </>
         )}
       </div>
     </section>
+  )
+}
+
+function UpstreamApiAddress({ address }: { address: string }) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle")
+
+  useEffect(() => {
+    if (copyStatus !== "copied") return
+    const timeout = window.setTimeout(() => setCopyStatus("idle"), 1500)
+    return () => window.clearTimeout(timeout)
+  }, [copyStatus])
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(address)
+      setCopyStatus("copied")
+    } catch {
+      setCopyStatus("error")
+    }
+  }
+
+  return (
+    <div className="mt-3 grid gap-1">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="shrink-0 text-muted-foreground">上游 API 地址</span>
+        <code className="min-w-0 select-text break-all">{address}</code>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          aria-label="复制上游 API 地址"
+          onClick={() => void copyAddress()}
+        >
+          {copyStatus === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+          <span role="status">{copyStatus === "copied" ? "已复制" : "复制地址"}</span>
+        </Button>
+      </div>
+      {copyStatus === "error" && (
+        <p role="alert" className="text-xs text-destructive">
+          复制失败，请手动选择上方地址复制。
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -675,14 +811,43 @@ function AccountMetricCard({
 }
 
 function GroupsTable({ groups }: { groups: UpstreamSnapshotRecord["summary"]["groups"] }) {
+  const [search, setSearch] = useState("")
+  const [selectedPlatform, setSelectedPlatform] = useState("all")
+  const [pageSize, setPageSize] = useState(10)
+  const [page, setPage] = useState(1)
+  const platforms = [...new Set(groups.flatMap((group) => group.platforms?.length ? group.platforms : [group.platform ?? "未知厂商"]))].sort((a, b) => a.localeCompare(b, "zh-CN"))
+  const normalizedSearch = search.trim().toLocaleLowerCase()
+  const filteredGroups = groups.filter((group) => {
+    const groupPlatforms = group.platforms?.length ? group.platforms : [group.platform ?? "未知厂商"]
+    const matchesPlatform = selectedPlatform === "all" || groupPlatforms.includes(selectedPlatform)
+    const matchesSearch = [group.name, group.id, group.platform, ...(group.platforms ?? [])]
+      .some((value) => value?.toLocaleLowerCase().includes(normalizedSearch))
+    return matchesPlatform && matchesSearch
+  })
+  const pageCount = Math.max(1, Math.ceil(filteredGroups.length / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  const visibleGroups = filteredGroups.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   return (
-    <Card>
+    <Card className="flex h-full min-w-0 flex-col">
       <CardHeader>
         <CardTitle>分组 / 倍率</CardTitle>
         <CardDescription>新增、删除、倍率变化会进入站内通知。</CardDescription>
       </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <table className="w-full min-w-[680px] text-left text-sm">
+      <CardContent className="grid flex-1 content-start gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">厂商</span>
+            <select className="h-9 min-w-36 border border-border bg-background px-3" value={selectedPlatform} onChange={(event) => { setSelectedPlatform(event.target.value); setPage(1) }} aria-label="按厂商筛选分组">
+              <option value="all">全部厂商 ({groups.length})</option>
+              {platforms.map((platform) => <option key={platform} value={platform}>{platform} ({groups.filter((group) => (group.platforms?.length ? group.platforms : [group.platform ?? "未知厂商"]).includes(platform)).length})</option>)}
+            </select>
+          </label>
+          <input className="h-9 min-w-48 flex-1 border border-border bg-background px-3 text-sm" type="search" placeholder="搜索分组名称、ID 或厂商" aria-label="搜索分组" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} />
+          <span className="text-xs text-muted-foreground">显示 {filteredGroups.length} / {groups.length}</span>
+        </div>
+        <div className="min-h-[480px] overflow-x-auto">
+        <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="border-b border-border text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-3">分组</th>
@@ -693,14 +858,14 @@ function GroupsTable({ groups }: { groups: UpstreamSnapshotRecord["summary"]["gr
             </tr>
           </thead>
           <tbody>
-            {groups.length === 0 ? (
+            {visibleGroups.length === 0 ? (
               <tr>
                 <td className="px-4 py-5 text-muted-foreground" colSpan={5}>
-                  暂无分组数据
+                  {groups.length === 0 ? "暂无分组数据" : "没有匹配的分组"}
                 </td>
               </tr>
             ) : (
-              groups.map((group) => (
+              visibleGroups.map((group) => (
                 <tr key={group.id} className="border-b border-border/70">
                   <td className="px-4 py-3 font-semibold">{group.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{group.platform ?? "-"}</td>
@@ -718,73 +883,47 @@ function GroupsTable({ groups }: { groups: UpstreamSnapshotRecord["summary"]["gr
             )}
           </tbody>
         </table>
+        </div>
+        <TablePagination page={currentPage} pageCount={pageCount} pageSize={pageSize} total={filteredGroups.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1) }} />
       </CardContent>
     </Card>
   )
 }
 
-function UsageTable({
-  title,
-  items,
-  range,
-}: {
-  title: string
-  items: UpstreamSnapshotRecord["summary"]["platformUsage"]
-  range?: UpstreamSnapshotRecord["summary"]["range"]
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>
-          请求、Token、实际消费和标准消费维度
-          {range ? `，范围 ${range.startDate} 至 ${range.endDate}` : ""}。
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <table className="w-full min-w-[520px] text-left text-sm">
-          <thead className="border-b border-border text-xs text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">名称</th>
-              <th className="px-4 py-3">请求</th>
-              <th className="px-4 py-3">Token</th>
-              <th className="px-4 py-3">实际</th>
-              <th className="px-4 py-3">标准</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td className="px-4 py-5 text-muted-foreground" colSpan={5}>
-                  暂无数据
-                </td>
-              </tr>
-            ) : (
-              items.map((item) => (
-                <tr key={item.name} className="border-b border-border/70">
-                  <td className="px-4 py-3 font-semibold">{item.name}</td>
-                  <td className="px-4 py-3">{formatMaybeNumber(item.requests)}</td>
-                  <td className="px-4 py-3">{formatCompactNumber(item.tokens)}</td>
-                  <td className="px-4 py-3">{formatMaybeAmount(item.actualCost ?? item.cost)}</td>
-                  <td className="px-4 py-3">{formatMaybeAmount(item.standardCost)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </CardContent>
-    </Card>
-  )
+function TablePagination({ page, pageCount, pageSize, total, onPageChange, onPageSizeChange }: { page: number; pageCount: number; pageSize: number; total: number; onPageChange: (page: number) => void; onPageSizeChange: (size: number) => void }) {
+  return <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+    <span className="text-muted-foreground">共 {total} 条 · 第 {page} / {pageCount} 页</span>
+    <div className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-muted-foreground">每页<select className="h-8 border border-border bg-background px-2 text-foreground" value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))} aria-label="每页条数"><option value={10}>10</option><option value={20}>20</option></select>条</label>
+      <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>上一页</Button>
+      <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => onPageChange(page + 1)}>下一页</Button>
+    </div>
+  </div>
 }
 
 function ApiKeysTable({
   apiKeys,
   groups,
+  canReveal,
+  revealedKeys,
+  revealingKeyId,
+  readError,
+  onReveal,
+  onCopy,
 }: {
   apiKeys: UpstreamSnapshotRecord["summary"]["apiKeys"]
   groups: UpstreamSnapshotRecord["summary"]["groups"]
+  canReveal: boolean
+  revealedKeys: Record<string, string>
+  revealingKeyId?: string
+  readError?: string
+  onReveal: (tokenId: string) => void
+  onCopy: (key: string) => Promise<void>
 }) {
   const [selectedPlatform, setSelectedPlatform] = useState("all")
+  const [selectedGroup, setSelectedGroup] = useState("all")
+  const [pageSize, setPageSize] = useState(10)
+  const [page, setPage] = useState(1)
   const platformByGroup = new Map<string, string>()
   groups.forEach((group) => {
     if (!group.platform) return
@@ -799,25 +938,44 @@ function ApiKeysTable({
   const platforms = [...new Set(apiKeys.map(platformForKey))].sort((left, right) =>
     left.localeCompare(right, "zh-CN"),
   )
-  const visibleKeys =
-    selectedPlatform === "all"
-      ? apiKeys
-      : apiKeys.filter((apiKey) => platformForKey(apiKey) === selectedPlatform)
+  const groupByIdOrName = new Map<string, (typeof groups)[number]>()
+  groups.forEach((group) => {
+    groupByIdOrName.set(group.id, group)
+    groupByIdOrName.set(group.name, group)
+  })
+  const groupForKey = (apiKey: (typeof apiKeys)[number]) =>
+    (apiKey.groupId ? groupByIdOrName.get(apiKey.groupId) : undefined) ??
+    (apiKey.groupName ? groupByIdOrName.get(apiKey.groupName) : undefined)
+  const groupValueForKey = (apiKey: (typeof apiKeys)[number]) =>
+    groupForKey(apiKey)?.id ?? apiKey.groupId ?? apiKey.groupName ?? "unassigned"
+  const groupLabelForKey = (apiKey: (typeof apiKeys)[number]) =>
+    groupForKey(apiKey)?.name ?? apiKey.groupName ?? apiKey.groupId ?? "未分组"
+  const groupOptions = [...new Map(apiKeys.map((key) => [
+    groupValueForKey(key), groupLabelForKey(key),
+  ])).entries()].sort((left, right) => left[1].localeCompare(right[1], "zh-CN"))
+  const filteredKeys = apiKeys.filter((apiKey) =>
+    (selectedPlatform === "all" || platformForKey(apiKey) === selectedPlatform) &&
+    (selectedGroup === "all" || groupValueForKey(apiKey) === selectedGroup),
+  )
+  const pageCount = Math.max(1, Math.ceil(filteredKeys.length / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  const visibleKeys = filteredKeys.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
-    <Card>
+    <Card className="flex h-full min-w-0 flex-col">
       <CardHeader>
         <CardTitle>API Key</CardTitle>
-        <CardDescription>Key 默认脱敏展示。</CardDescription>
+        <CardDescription>点击查看时从上游即时读取明文；明文不会保存在快照中。</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3">
-        <label className="flex flex-wrap items-center gap-2 text-sm">
-          <Filter aria-hidden="true" className="size-4 text-muted-foreground" />
-          <span className="text-muted-foreground">厂商</span>
+      <CardContent className="grid flex-1 content-start gap-3">
+        {readError && <p role="alert" className="text-sm text-destructive">读取密钥失败：{readError}</p>}
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-2"><Filter aria-hidden="true" className="size-4" />厂商</span>
           <select
-            className="h-9 min-w-40 border border-border bg-background px-3"
+            className="h-9 w-full min-w-0 border border-border bg-background px-3 text-sm text-foreground"
             value={selectedPlatform}
-            onChange={(event) => setSelectedPlatform(event.target.value)}
+            onChange={(event) => { setSelectedPlatform(event.target.value); setPage(1) }}
             aria-label="按厂商筛选 API Key"
           >
             <option value="all">全部厂商 ({apiKeys.length})</option>
@@ -828,21 +986,30 @@ function ApiKeysTable({
               </option>
             ))}
           </select>
-          <span className="text-xs text-muted-foreground">
-            显示 {visibleKeys.length} / {apiKeys.length}
-          </span>
-        </label>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          </label>
+          <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+            <span>分组</span>
+            <select className="h-9 w-full min-w-0 border border-border bg-background px-3 text-sm text-foreground" value={selectedGroup} onChange={(event) => { setSelectedGroup(event.target.value); setPage(1) }} aria-label="按分组筛选 API Key">
+              <option value="all">全部分组 ({apiKeys.length})</option>
+              {groupOptions.map(([value, label]) => <option key={value} value={value}>{label} ({apiKeys.filter((key) => groupValueForKey(key) === value).length})</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>显示 {filteredKeys.length} / {apiKeys.length}</span>
+          <span>第 {currentPage} / {pageCount} 页</span>
+        </div>
+        <div className="min-h-[480px] min-w-0 flex-1 overflow-x-auto">
+          <table className="w-full min-w-[700px] table-fixed text-left text-sm">
             <thead className="border-b border-border text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">名称</th>
-                <th className="px-4 py-3">Key</th>
-                <th className="px-4 py-3">分组</th>
-                <th className="px-4 py-3">厂商</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">额度</th>
-                <th className="px-4 py-3">已用</th>
+                <th className="w-[21%] px-3 py-3">名称</th>
+                <th className="w-[29%] px-3 py-3">Key</th>
+                <th className="w-[14%] px-3 py-3">分组</th>
+                <th className="w-[12%] px-3 py-3">厂商</th>
+                <th className="w-[10%] px-3 py-3">状态</th>
+                <th className="w-[7%] px-3 py-3">额度</th>
+                <th className="w-[7%] px-3 py-3">已用</th>
               </tr>
             </thead>
             <tbody>
@@ -856,70 +1023,38 @@ function ApiKeysTable({
                 visibleKeys.map((apiKey, index) => (
                   <tr
                     key={apiKey.id ?? `${apiKey.name}-${index}`}
-                    className="border-b border-border/70"
+                    className="h-12 border-b border-border/70"
                   >
-                    <td className="px-4 py-3 font-semibold">{apiKey.name ?? "-"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{apiKey.keyPreview ?? "-"}</td>
-                    <td className="px-4 py-3">{apiKey.groupName ?? apiKey.groupId ?? "-"}</td>
-                    <td className="px-4 py-3">{platformForKey(apiKey)}</td>
-                    <td className="px-4 py-3">{apiKey.status ?? "-"}</td>
-                    <td className="px-4 py-3">{formatMaybeNumber(apiKey.quota)}</td>
-                    <td className="px-4 py-3">{formatMaybeNumber(apiKey.used)}</td>
+                    <td className="px-3 py-3 font-semibold"><span className="block truncate" title={apiKey.name ?? "-"}>{apiKey.name ?? "-"}</span></td>
+                    <td className="min-w-0 px-3 py-3">
+                      {revealedKeys[apiKey.id ?? ""] ? (
+                        <div className="flex min-w-0 items-center gap-1">
+                          <code className="block min-w-0 flex-1 truncate text-xs" title={revealedKeys[apiKey.id ?? ""]}>{revealedKeys[apiKey.id ?? ""]}</code>
+                          <Button type="button" variant="outline" size="sm" className="shrink-0 px-2" aria-label="复制 API Key" onClick={() => void onCopy(revealedKeys[apiKey.id ?? ""] ?? "")}>
+                            <Copy aria-hidden="true" />
+                          </Button>
+                        </div>
+                      ) : canReveal && apiKey.id ? (
+                        <div className="flex min-w-0 items-center gap-1">
+                          <span className="block min-w-0 flex-1 truncate text-muted-foreground" title={apiKey.keyPreview ?? "未提供掩码"}>{apiKey.keyPreview ?? "未提供掩码"}</span>
+                          <Button type="button" variant="outline" size="sm" className="shrink-0 px-2" disabled={revealingKeyId === apiKey.id} onClick={() => onReveal(apiKey.id!)}>
+                            {revealingKeyId === apiKey.id ? "读取中..." : "查看"}
+                          </Button>
+                        </div>
+                      ) : <span className="block truncate text-muted-foreground" title={apiKey.keyPreview ?? "-"}>{apiKey.keyPreview ?? "-"}</span>}
+                    </td>
+                    <td className="px-3 py-3"><span className="block truncate" title={groupLabelForKey(apiKey)}>{groupLabelForKey(apiKey)}</span></td>
+                    <td className="px-3 py-3"><span className="block truncate" title={platformForKey(apiKey)}>{platformForKey(apiKey)}</span></td>
+                    <td className="px-3 py-3"><span className="block truncate" title={apiKey.status ?? "-"}>{apiKey.status ?? "-"}</span></td>
+                    <td className="px-3 py-3">{formatMaybeNumber(apiKey.quota)}</td>
+                    <td className="px-3 py-3">{formatMaybeNumber(apiKey.used)}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function RecentUsageTable({ items }: { items: UpstreamSnapshotRecord["summary"]["recentUsage"] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>最近使用记录</CardTitle>
-        <CardDescription>展示最近一次快照内可解析的使用记录。</CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead className="border-b border-border text-xs text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">时间</th>
-              <th className="px-4 py-3">模型</th>
-              <th className="px-4 py-3">平台</th>
-              <th className="px-4 py-3">Key</th>
-              <th className="px-4 py-3">分组</th>
-              <th className="px-4 py-3">Token</th>
-              <th className="px-4 py-3">实际</th>
-              <th className="px-4 py-3">标准</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td className="px-4 py-5 text-muted-foreground" colSpan={8}>
-                  暂无最近使用记录
-                </td>
-              </tr>
-            ) : (
-              items.map((item, index) => (
-                <tr key={item.id ?? index} className="border-b border-border/70">
-                  <td className="px-4 py-3">{formatDateTime(item.createdAt)}</td>
-                  <td className="px-4 py-3 font-semibold">{item.model ?? "-"}</td>
-                  <td className="px-4 py-3">{item.platform ?? "-"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{item.apiKeyName ?? "-"}</td>
-                  <td className="px-4 py-3">{item.groupName ?? "-"}</td>
-                  <td className="px-4 py-3">{formatCompactNumber(item.tokens)}</td>
-                  <td className="px-4 py-3">{formatMaybeAmount(item.actualCost ?? item.cost)}</td>
-                  <td className="px-4 py-3">{formatMaybeAmount(item.standardCost)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <TablePagination page={currentPage} pageCount={pageCount} pageSize={pageSize} total={filteredKeys.length} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1) }} />
       </CardContent>
     </Card>
   )
